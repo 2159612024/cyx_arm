@@ -1,903 +1,158 @@
+# cyx_arm
 
-# 六轴机械臂 ROS2 控制框架开发需求说明
+六自由度串联机械臂的 ROS 2 控制工程骨架。机械模型由 SolidWorks 设计，并通过 sw2urdf 导出。
 
-## 1. 项目概述
+本仓库当前用于在其他开发服务器上继续搭建 ROS 2 Humble、Gazebo、ros2_control、MoveIt 2 以及达妙电机硬件接口。仓库目前仅完成目录初始化和模型资产迁移，尚不具备编译、启动或控制能力。
 
-本项目目标是在 ROS2 环境下搭建一个模块化六轴机械臂控制框架。
+## 机械臂概况
 
-机械臂结构：
+- 构型：六自由度串联机械臂，Piper 类构型
+- 关节：6 个旋转关节
+- Joint 1～3 计划使用达妙 DM4340
+- Joint 4～6 计划使用达妙 DM4310
+- 仿真与真实硬件应使用同一套上层 ROS 2 控制接口
 
-- 六自由度串联机械臂
-- 构型：
-  - 标准 Piper 机械臂构型
-  - 6 个旋转关节
-- 电机配置：
-  - Joint1~Joint3：
-    - 达妙 DM4340
-  - Joint4~Joint6：
-    - 达妙 DM4310
+原始 URDF 中的关节名为 `arm_joint1`～`arm_joint6`，不是早期设计文档中的 `joint1`～`joint6`。实现控制器、SRDF 和硬件配置时必须统一命名，避免直接混用。
 
-当前已有：
+## 当前完成状态
 
-- 完成机械结构设计
-- 已通过 SolidWorks + sw2urdf 导出 URDF 文件
+已完成：
 
-后续目标：
+- 创建 ROS 2 workspace 风格的 `src/` 目录
+- 创建 6 个功能包的目录骨架
+- 迁移 sw2urdf 导出的 URDF、CSV、STL、配置、launch 和导出日志
+- 将工作 URDF 的 mesh URI 从 `package://cyx_arm_001/...` 调整为 `package://cyx_robot_description/...`
+- 保留 sw2urdf 原始导出辅助文件，方便后续追溯
+- 初始化 Git 仓库并上传 GitHub
 
-1. 在 Gazebo 中完成机械臂动力学仿真
-2. 在 RViz 中完成模型显示和运动控制
-3. 建立标准 ROS2 控制接口
-4. 支持 MoveIt2 运动规划
-5. 保留硬件抽象层
-6. 后续可以无缝替换为真实 DM4310/DM4340 电机控制
-7. 支持扩展其他仿真平台
+尚未完成：
 
+- 各 ROS 2 包的 `package.xml` 和 `CMakeLists.txt`
+- URDF 到 Xacro 的拆分与转换
+- `ros2_control`、transmission 和 Gazebo 插件描述
+- controller、RViz、Gazebo 和 MoveIt 2 配置
+- Python launch 文件
+- 达妙电机 `hardware_interface` 实现
+- 编译、仿真和真机测试
 
----
+除迁移的 sw2urdf 文件外，仓库中的代码及配置骨架文件有意保持为空。
 
-# 2. 开发环境要求
+## 目录结构
 
-
-## ROS版本
-
-目标：
-
-```
-ROS2 Humble
-```
-
-系统：
-
-```
-Ubuntu 22.04
-```
-
-主要依赖：
-
-```
-ros-humble-desktop
-
-ros2_control
-
-ros2_controllers
-
-gazebo_ros2_control
-
-moveit2
-
-robot_state_publisher
-
-joint_state_publisher
-
-xacro
-```
-
-
----
-
-# 3. 工作空间结构
-
-
-创建 ROS2 workspace：
-
-```
-<workspace_path>/
-|
-├── src/
-│
-│
-├── cyx_robot_description/
-│
-├── cyx_robot_bringup/
-│
-├── cyx_robot_control/
-│
-├── cyx_robot_hardware/
-│
-├── cyx_robot_moveit/
-│
-└── cyx_robot_simulation/
-```
-
-
-说明：
-
-
-## cyx_robot_description
-
-负责：
-
-- URDF/Xacro
-- robot model
-- mesh
-- transmission
-- ros2_control 描述
-
-
-结构：
-
-```
-cyx_robot_description/
-
-├── urdf/
-│
-│   ├── cyx_robot.urdf.xacro
-│   ├── materials.xacro
-│   ├── gazebo_control.xacro
-│
-├── meshes/
-│
-│   ├── link1.stl
-│   ├── link2.stl
-│   ...
-│
-├── launch/
-│
-│   └── display.launch.py
-│
-└── config/
-```
-
-
-URDF 文件位置：
-
-```
-<URDF_PATH>
-```
-
-由用户后续填写。
-
-
----
-
-# 4. URDF处理要求
-
-
-不要直接使用固定 URDF。
-
-
-要求：
-
-将原始 URDF 转换为 Xacro 管理。
-
-
-需要：
-
-```
-cyx_robot.urdf.xacro
-```
-
-
-包含：
-
-## robot_description
-
-
-提供：
-
-```
-robot_state_publisher
-```
-
-
-## Gazebo插件
-
-
-加入：
-
-```
-gazebo_ros2_control
-```
-
-
-## ros2_control
-
-
-加入：
-
-```
-<ros2_control>
-```
-
-
-定义六个关节：
-
-```
-joint1
-
-joint2
-
-joint3
-
-joint4
-
-joint5
-
-joint6
-```
-
-
-每个关节需要：
-
-command interface:
-
-```
-position
-```
-
-state interface:
-
-```
-position
-
-velocity
-```
-
-
-预留：
-
-```
-effort
-```
-
-
----
-
-# 5. ros2_control架构设计
-
-
-采用标准结构：
-
-
-```
-controller_manager
-
-        |
-        |
-        |
-
-ros2_control
-
-        |
-
-hardware_interface
-
-        |
-
-DM4310/DM4340 driver
-
-        |
-
-CAN bus
-
-```
-
-
-当前阶段：
-
-使用 Gazebo 仿真 hardware。
-
-
-未来：
-
-替换：
-
-```
-GazeboSystem
-```
-
-为：
-
-```
-DamiaoSystemHardware
-```
-
-
----
-
-# 6. 控制器设计
-
-
-使用：
-
-ros2_control。
-
-
-配置：
-
-
-## joint_state_controller
-
-
-发布：
-
-```
-/joint_states
-```
-
-
-类型：
-
-```
-joint_state_broadcaster
-```
-
-
----
-
-## trajectory controller
-
-
-使用：
-
-```
-joint_trajectory_controller
-```
-
-
-控制：
-
-```
-/joint_trajectory_controller
-```
-
-
-支持：
-
-```
-trajectory_msgs/JointTrajectory
-```
-
-
----
-
-配置文件：
-
-路径：
-
-```
-cyx_robot_control/config/controllers.yaml
-```
-
-
-内容包含：
-
-六轴控制器：
-
-```yaml
-joint_names:
-
- - joint1
- - joint2
- - joint3
- - joint4
- - joint5
- - joint6
-```
-
-
----
-
-# 7. Gazebo仿真
-
-
-目标：
-
-启动后：
-
-```
-Gazebo
-
-+
-
-RViz
-
-+
-
-robot_state_publisher
-
-+
-
-ros2_control
-```
-
-
-启动命令：
-
-
-```
-ros2 launch cyx_robot_simulation gazebo.launch.py
-```
-
-
-效果：
-
-- Gazebo显示机械臂
-- RViz显示TF
-- 可以通过ROS2 topic控制关节
-
-
----
-
-# 8. RViz配置
-
-
-创建：
-
-```
-rviz/
-|
-└── cyx.rviz
-```
-
-
-显示：
-
-必须包含：
-
-```
-RobotModel
-
-TF
-
-JointState
-
-MotionPlanning
-```
-
-
----
-
-# 9. MoveIt2集成
-
-
-创建：
-
-```
-cyx_robot_moveit
-```
-
-
-要求：
-
-生成：
-
-```
-moveit_config
-```
-
-
-包含：
-
-
-```
-config/
-
-├── controllers.yaml
-
-├── joint_limits.yaml
-
-├── kinematics.yaml
-
-├── ompl_planning.yaml
-
-└── cyx.srdf
-```
-
-
-支持：
-
-- RViz MotionPlanning插件
-- 关节空间规划
-- 笛卡尔路径规划
-
-
----
-
-# 10. 硬件抽象层设计
-
-
-必须提前设计真实电机接口。
-
-
-创建：
-
-```
-cyx_robot_hardware
-```
-
-
-结构：
-
-```
-cyx_robot_hardware/
-
-├── include/
-
-│
-├── src/
-
-│   └── damiao_hardware.cpp
-
-│
-├── config/
-
-│
-└── CMakeLists.txt
+```text
+cyx_arm/
+├── README.md
+├── rviz/
+│   └── cyx.rviz
+└── src/
+    ├── cyx_robot_description/   # URDF/Xacro、mesh、模型显示
+    ├── cyx_robot_bringup/       # 系统统一启动入口
+    ├── cyx_robot_control/       # ros2_control 控制器配置
+    ├── cyx_robot_hardware/      # 达妙电机硬件抽象层
+    ├── cyx_robot_moveit/        # MoveIt 2 配置与启动
+    └── cyx_robot_simulation/    # Gazebo 仿真、world 与启动文件
 ```
 
+### 模型文件
 
+| 内容 | 路径 |
+| --- | --- |
+| 当前工作 URDF | `src/cyx_robot_description/urdf/cyx_robot.urdf` |
+| sw2urdf CSV | `src/cyx_robot_description/urdf/cyx_arm_001.csv` |
+| 7 个 STL mesh | `src/cyx_robot_description/meshes/` |
+| 待实现的 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
+| sw2urdf 原始辅助文件 | `src/cyx_robot_description/sw2urdf_export/` |
 
-实现：
+`sw2urdf_export/` 中的 package、CMake 和 launch 文件由 ROS 1 风格的导出器生成，仅作为原始资料保留，不应直接用于 ROS 2 构建。
 
-ROS2 hardware_interface:
+## 在开发服务器上开始工作
 
+目标环境：
 
-继承：
+- Ubuntu 22.04
+- ROS 2 Humble
+- `ament_cmake`
+- C++17
 
-```cpp
-hardware_interface::SystemInterface
-```
-
-
-
-接口：
-
-```cpp
-configure()
-
-activate()
-
-deactivate()
-
-read()
-
-write()
-```
-
-
----
-
-# 11. 达妙电机接口规划
-
-
-未来真实硬件：
-
-
-电机：
-
-```
-Joint1 DM4340
-
-Joint2 DM4340
-
-Joint3 DM4340
-
-
-Joint4 DM4310
-
-Joint5 DM4310
-
-Joint6 DM4310
-```
-
-
-接口：
-
-```
-CAN ID
-
-Motor ID
-
-Gear Ratio
-
-Zero Position
-
-Direction
-```
-
-
-配置文件：
-
-
-```
-damiao.yaml
-```
-
-
-格式：
-
-```yaml
-motors:
-
- joint1:
-
-  type: DM4340
+建议安装的主要组件：
 
-  id: 1
+- ROS 2 Humble Desktop
+- `xacro`
+- `robot_state_publisher`
+- `joint_state_publisher_gui`
+- `ros2_control` 与 `ros2_controllers`
+- Gazebo 与 `gazebo_ros2_control`
+- MoveIt 2
+- `colcon`
 
-  can_id: 1
+克隆仓库：
 
-
- joint2:
-
-  type: DM4340
-
-  id: 2
-
-
- joint3:
-
-  type: DM4340
-
-  id: 3
-
-
- joint4:
-
-  type: DM4310
-
-  id:4
-
-
- joint5:
-
-  type: DM4310
-
-  id:5
-
-
- joint6:
-
-  type: DM4310
-
-  id:6
-```
-
-
----
-
-# 12. Topic接口设计
-
-
-## 输入控制
-
-
-关节轨迹：
-
-```
-/joint_trajectory_controller/joint_trajectory
-```
-
-
-消息：
-
-```
-trajectory_msgs/JointTrajectory
-```
-
-
-
-## 状态输出
-
-
-关节状态：
-
+```bash
+git clone https://github.com/2159612024/cyx_arm.git
+cd cyx_arm
 ```
-/joint_states
-```
 
+当前版本不能执行 `colcon build`。应先补全各包的 `package.xml`、`CMakeLists.txt` 和源文件，再使用：
 
-TF:
-
-```
-/tf
+```bash
+source /opt/ros/humble/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install
+source install/setup.bash
 ```
 
+## 推荐实现顺序
 
----
+1. **模型描述**：检查质量、惯量、关节轴、坐标系和碰撞模型，将固定 URDF 拆分为 Xacro。
+2. **模型显示**：实现 `cyx_robot_description`，通过 `robot_state_publisher` 和 RViz 验证 TF 与关节运动。
+3. **ros2_control**：加入六关节 position command interface，以及 position、velocity state interface；预留 effort。
+4. **控制器**：配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`。
+5. **Gazebo 仿真**：实现 `cyx_robot_simulation`，加载模型、控制器和仿真硬件。
+6. **MoveIt 2**：生成 SRDF、运动学、关节限制、规划器及控制器映射。
+7. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
+8. **统一启动**：由 `cyx_robot_bringup` 组合模型、控制器、规划和硬件启动流程。
 
-# 13. Launch设计
+## 目标接口
 
+计划提供：
 
-最终提供：
+- 轨迹输入：`/joint_trajectory_controller/joint_trajectory`
+- 轨迹消息：`trajectory_msgs/msg/JointTrajectory`
+- 关节状态：`/joint_states`
+- 坐标变换：`/tf`
 
+计划提供的启动命令：
 
-## 显示模型
-
-
-```
+```bash
 ros2 launch cyx_robot_description display.launch.py
-```
-
-
-启动：
-
-- robot_state_publisher
-- RViz
-
-
----
-
-
-## Gazebo仿真
-
-
-```
 ros2 launch cyx_robot_simulation gazebo.launch.py
-```
-
-
-启动：
-
-- Gazebo
-- ros2_control
-- controllers
-
-
----
-
-
-## MoveIt
-
-
-```
 ros2 launch cyx_robot_moveit demo.launch.py
 ```
 
+以上命令目前只是目标接口，相关文件仍为空，尚不可执行。
 
+## 达妙硬件规划
 
----
+`src/cyx_robot_hardware/config/damiao.yaml` 后续应为每个关节配置：
 
-# 14. Codex生成要求
+- 电机型号
+- Motor ID
+- CAN ID 与 CAN 接口
+- 减速比
+- 零位
+- 方向
+- 位置、速度和力矩限制
 
+硬件插件计划继承 `hardware_interface::SystemInterface`，实现 ROS 2 Humble 对应生命周期以及 `read()`、`write()` 接口。具体函数签名应以服务器实际安装的 Humble API 为准。
 
-请生成完整 ROS2 工程。
+## 开发约束
 
+- 仿真控制与真实硬件控制保持解耦
+- 不把上层控制逻辑直接写入 Gazebo 节点
+- Gazebo 与达妙硬件使用一致的 joint/controller 接口
+- 修改 mesh 文件或机械结构后，同步检查 URDF 惯量、碰撞体和坐标系
+- 首次真机运行前必须设置合理的关节、速度、力矩和软件急停限制
 
-要求：
+## 说明
 
-
-## 必须生成：
-
-- package.xml
-- CMakeLists.txt
-- launch文件
-- yaml配置
-- xacro文件
-- controller配置
-- hardware_interface框架代码
-
-
----
-
-## 编码规范
-
-
-语言：
-
-- Python:
-  - launch文件
-
-
-- C++:
-  - hardware_interface
-
-
-要求：
-
-- ROS2 Humble规范
-- 使用ament_cmake
-- 使用现代C++17
-
-
----
-
-# 15. 文件路径占位
-
-
-以下路径由用户填写：
-
-
-## ROS workspace
-
-```
-<WORKSPACE_PATH>
-```
-
-
-## 原始URDF
-
-```
-<URDF_PATH>
-```
-
-
-## Mesh文件
-
-```
-<MESH_PATH>
-```
-
-
-## 达妙SDK路径
-
-```
-<DAMIAO_SDK_PATH>
-```
-
-
----
-
-# 16. 最终目标
-
-
-完成后系统应支持：
-
-```
-                 RViz
-
-                  |
-
-              MoveIt2
-
-                  |
-
-          ros2_control
-
-                  |
-
-        -----------------
-
-        |               |
-
-     Gazebo       DM Hardware
-
-        |               |
-
-   Simulation       Real Robot
-
-```
-
-
-最终实现：
-
-同一套ROS2控制接口：
-
-- Gazebo仿真
-- RViz规划
-- DM4310/DM4340真实机械臂控制
-
-无需修改上层控制程序。
-
-
-
----
-
-## 给 Codex 的执行要求
-
-请按照以上设计生成完整 ROS2 Humble 工程。
-
-优先完成：
-
-1. robot_description
-2. gazebo仿真
-3. ros2_control
-4. controller
-5. MoveIt2接口
-6. hardware_interface空实现
-
-不要将控制逻辑直接写入Gazebo节点。
-
-必须保持：
-
-**仿真控制接口和真实硬件控制接口完全解耦。**
-
----
-
-这份文档可以直接作为 Codex 的项目初始化说明。后续如果你把 **URDF 文件提供给 Codex 或上传给我**，还可以进一步生成：
-- 精确的 xacro 拆分方案
-- 六轴 joint 名称映射
-- MoveIt SRDF
-- ros2_control 参数
-- DM4310/DM4340 CAN 驱动接口设计。
+该仓库尚未在 ROS 2 环境中构建或测试。后续提交应在 Ubuntu 22.04 + ROS 2 Humble 服务器上完成编译、launch、RViz、Gazebo、MoveIt 2 和硬件测试，并在 README 中持续更新实际可用命令与测试结果。

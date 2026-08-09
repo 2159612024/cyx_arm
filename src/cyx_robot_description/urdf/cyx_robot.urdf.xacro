@@ -4,6 +4,7 @@
   <xacro:arg name="controllers_file" default=""/>
 
   <xacro:include filename="$(find cyx_robot_description)/urdf/materials.xacro"/>
+  <xacro:include filename="$(find cyx_robot_description)/urdf/gazebo_control.xacro"/>
 
   <xacro:macro name="cyx_link" params="name mass com ixx ixy ixz iyy iyz izz">
     <link name="${name}">
@@ -85,8 +86,7 @@
   <xacro:cyx_joint name="arm_joint6" parent="arm_link5" child="arm_link6"
     xyz="0 0 0.09" axis="0 0 -1" effort="8.0" velocity="2.0"/>
 
-  <xacro:if value="$(arg use_gazebo)">
-    <xacro:include filename="$(find cyx_robot_description)/urdf/gazebo_control.xacro"/>
-    <xacro:cyx_gazebo_control controllers_file="$(arg controllers_file)"/>
-  </xacro:if>
+  <xacro:cyx_ros2_control
+    use_gazebo="$(arg use_gazebo)"
+    controllers_file="$(arg controllers_file)"/>
 </robot>

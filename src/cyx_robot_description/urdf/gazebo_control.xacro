@@ -32,6 +32,10 @@
     </ros2_control>
 
     <xacro:if value="${use_gazebo}">
+      <gazebo reference="base_link">
+        <mu1>0.8</mu1>
+        <mu2>0.8</mu2>
+      </gazebo>
       <gazebo>
         <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
           <parameters>${controllers_file}</parameters>

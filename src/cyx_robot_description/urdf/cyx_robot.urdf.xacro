@@ -39,6 +39,14 @@
     </joint>
   </xacro:macro>
 
+  <!-- Gazebo treats a fixed joint whose parent is world as a ground anchor. -->
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
   <xacro:cyx_link name="base_link" mass="0.81924"
     com="-0.0012127 4.2244e-07 0.031336"
     ixx="0.0013934" ixy="1.9166e-08" ixz="-6.109e-06"

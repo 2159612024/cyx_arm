@@ -2,7 +2,7 @@
 
 六自由度串联机械臂的 ROS 2 控制工程骨架。机械模型由 SolidWorks 设计，并通过 sw2urdf 导出。
 
-本仓库当前用于在其他开发服务器上继续搭建 ROS 2 Humble、Gazebo、ros2_control、MoveIt 2 以及达妙电机硬件接口。仓库目前仅完成目录初始化和模型资产迁移，尚不具备编译、启动或控制能力。
+本仓库基于 ROS 2 Humble、Gazebo Classic 和 `ros2_control`，当前已经具备模型显示、mock 控制以及 Gazebo + RViz 联合仿真能力。本阶段不包含 MoveIt 2、达妙电机硬件接口或实机测试。
 
 ## 机械臂概况
 
@@ -19,23 +19,24 @@
 已完成：
 
 - 创建 ROS 2 workspace 风格的 `src/` 目录
-- 创建 6 个功能包的目录骨架
+- 补齐 6 个功能包的 `package.xml` 和 `CMakeLists.txt`
 - 迁移 sw2urdf 导出的 URDF、CSV、STL、配置、launch 和导出日志
 - 将工作 URDF 的 mesh URI 从 `package://cyx_arm_001/...` 调整为 `package://cyx_robot_description/...`
 - 保留 sw2urdf 原始导出辅助文件，方便后续追溯
-- 初始化 Git 仓库并上传 GitHub
+- 将工作模型转换为可复用的 Xacro，并补充非零速度、力矩与阻尼参数
+- 实现 `robot_state_publisher`、关节状态 GUI 和 RViz 模型显示
+- 配置 position command 及 position/velocity state interface
+- 配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`
+- 实现 mock hardware 控制测试入口
+- 实现 Gazebo Classic world、模型生成、控制器加载及 RViz 联合启动
 
 尚未完成：
 
-- 各 ROS 2 包的 `package.xml` 和 `CMakeLists.txt`
-- URDF 到 Xacro 的拆分与转换
-- `ros2_control`、transmission 和 Gazebo 插件描述
-- controller、RViz、Gazebo 和 MoveIt 2 配置
-- Python launch 文件
+- MoveIt 2 配置与运动规划
 - 达妙电机 `hardware_interface` 实现
-- 编译、仿真和真机测试
+- 真机通信、标定与安全测试
 
-除迁移的 sw2urdf 文件外，仓库中的代码及配置骨架文件有意保持为空。
+`cyx_robot_hardware` 和 `cyx_robot_moveit` 当前仅保留可构建的占位包，不属于本阶段实现范围。
 
 ## 目录结构
 
@@ -60,7 +61,7 @@ cyx_arm/
 | 当前工作 URDF | `src/cyx_robot_description/urdf/cyx_robot.urdf` |
 | sw2urdf CSV | `src/cyx_robot_description/urdf/cyx_arm_001.csv` |
 | 7 个 STL mesh | `src/cyx_robot_description/meshes/` |
-| 待实现的 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
+| 当前工作 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
 | sw2urdf 原始辅助文件 | `src/cyx_robot_description/sw2urdf_export/` |
 
 `sw2urdf_export/` 中的 package、CMake 和 launch 文件由 ROS 1 风格的导出器生成，仅作为原始资料保留，不应直接用于 ROS 2 构建。
@@ -82,7 +83,6 @@ cyx_arm/
 - `joint_state_publisher_gui`
 - `ros2_control` 与 `ros2_controllers`
 - Gazebo 与 `gazebo_ros2_control`
-- MoveIt 2
 - `colcon`
 
 克隆仓库：
@@ -92,7 +92,7 @@ git clone https://github.com/2159612024/cyx_arm.git
 cd cyx_arm
 ```
 
-当前版本不能执行 `colcon build`。应先补全各包的 `package.xml`、`CMakeLists.txt` 和源文件，再使用：
+安装依赖并构建：
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -101,37 +101,93 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+建议在非 Conda 环境中构建，确认 `python3` 指向 Ubuntu 22.04 的 `/usr/bin/python3`。
+
+## 使用方法
+
+### RViz 模型显示
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch cyx_robot_description display.launch.py
+```
+
+通过 Joint State Publisher GUI 调整六个关节，RViz 会同步显示模型和 TF。
+
+### mock ros2_control 测试
+
+```bash
+ros2 launch cyx_robot_control control.launch.py
+```
+
+该入口不启动 Gazebo，使用 `mock_components/GenericSystem` 验证控制器配置。
+
+### Gazebo 与 RViz 联合仿真
+
+```bash
+ros2 launch cyx_robot_simulation gazebo.launch.py
+```
+
+也可以使用统一入口：
+
+```bash
+ros2 launch cyx_robot_bringup bringup.launch.py
+```
+
+无图形界面运行 Gazebo：
+
+```bash
+ros2 launch cyx_robot_simulation gazebo.launch.py gui:=false use_rviz:=false
+```
+
+启动后可确认控制器状态：
+
+```bash
+ros2 control list_controllers
+```
+
+预期 `joint_state_broadcaster` 和 `joint_trajectory_controller` 均为 `active`。
+
+发送一条五秒轨迹进行测试：
+
+```bash
+ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
+  trajectory_msgs/msg/JointTrajectory \
+  "{joint_names: [arm_joint1, arm_joint2, arm_joint3, arm_joint4, arm_joint5, arm_joint6], points: [{positions: [0.5, -0.4, 0.6, 0.3, -0.3, 0.4], time_from_start: {sec: 5}}]}"
+```
+
 ## 推荐实现顺序
 
-1. **模型描述**：检查质量、惯量、关节轴、坐标系和碰撞模型，将固定 URDF 拆分为 Xacro。
-2. **模型显示**：实现 `cyx_robot_description`，通过 `robot_state_publisher` 和 RViz 验证 TF 与关节运动。
-3. **ros2_control**：加入六关节 position command interface，以及 position、velocity state interface；预留 effort。
-4. **控制器**：配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`。
-5. **Gazebo 仿真**：实现 `cyx_robot_simulation`，加载模型、控制器和仿真硬件。
+1. **模型描述（已完成）**：检查导出参数，将固定 URDF 拆分为 Xacro。
+2. **模型显示（已完成）**：通过 `robot_state_publisher` 和 RViz 验证 TF 与关节运动。
+3. **ros2_control（已完成）**：加入六关节 position command interface，以及 position、velocity state interface。
+4. **控制器（已完成）**：配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`。
+5. **Gazebo 仿真（已完成）**：加载模型、控制器、GazeboSystem 和 RViz。
 6. **MoveIt 2**：生成 SRDF、运动学、关节限制、规划器及控制器映射。
 7. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
-8. **统一启动**：由 `cyx_robot_bringup` 组合模型、控制器、规划和硬件启动流程。
+8. **统一启动（仿真已完成）**：当前由 `cyx_robot_bringup` 组合 Gazebo、模型、控制器和 RViz；规划和硬件待后续扩展。
 
 ## 目标接口
 
-计划提供：
+当前提供：
 
 - 轨迹输入：`/joint_trajectory_controller/joint_trajectory`
 - 轨迹消息：`trajectory_msgs/msg/JointTrajectory`
 - 关节状态：`/joint_states`
 - 坐标变换：`/tf`
 
-计划提供的启动命令：
+当前可用的启动命令：
 
 ```bash
 ros2 launch cyx_robot_description display.launch.py
 ros2 launch cyx_robot_simulation gazebo.launch.py
-ros2 launch cyx_robot_moveit demo.launch.py
+ros2 launch cyx_robot_bringup bringup.launch.py
 ```
 
-以上命令目前只是目标接口，相关文件仍为空，尚不可执行。
+MoveIt 2 的 `demo.launch.py` 尚未实现。
 
-## 达妙硬件规划
+## 后续达妙硬件规划（本阶段未实现）
 
 `src/cyx_robot_hardware/config/damiao.yaml` 后续应为每个关节配置：
 
@@ -155,4 +211,4 @@ ros2 launch cyx_robot_moveit demo.launch.py
 
 ## 说明
 
-该仓库尚未在 ROS 2 环境中构建或测试。后续提交应在 Ubuntu 22.04 + ROS 2 Humble 服务器上完成编译、launch、RViz、Gazebo、MoveIt 2 和硬件测试，并在 README 中持续更新实际可用命令与测试结果。
+当前工作空间已在 Ubuntu 22.04 + ROS 2 Humble 环境完成 Xacro/URDF 解析、Python launch 语法检查、全包 `colcon build`，并验证 mock hardware 和两个控制器能够完成加载与激活。Gazebo 已验证模型生成成功；完整 GUI 效果仍应在带显示环境的开发终端中按上述命令确认。

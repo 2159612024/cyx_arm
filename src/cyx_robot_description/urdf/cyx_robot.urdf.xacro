@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<robot name="cyx_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="use_gazebo" default="false"/>
+  <xacro:arg name="controllers_file" default=""/>
+
+  <xacro:include filename="$(find cyx_robot_description)/urdf/materials.xacro"/>
+
+  <xacro:macro name="cyx_link" params="name mass com ixx ixy ixz iyy iyz izz">
+    <link name="${name}">
+      <inertial>
+        <origin xyz="${com}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${ixx}" ixy="${ixy}" ixz="${ixz}"
+                 iyy="${iyy}" iyz="${iyz}" izz="${izz}"/>
+      </inertial>
+      <visual>
+        <geometry>
+          <mesh filename="package://cyx_robot_description/meshes/${name}.STL"/>
+        </geometry>
+        <material name="cyx_grey"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="package://cyx_robot_description/meshes/${name}.STL"/>
+        </geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="cyx_joint" params="name parent child xyz axis effort:=20.0 velocity:=1.5">
+    <joint name="${name}" type="continuous">
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <axis xyz="${axis}"/>
+      <limit effort="${effort}" velocity="${velocity}"/>
+      <dynamics damping="0.1" friction="0.05"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:cyx_link name="base_link" mass="0.81924"
+    com="-0.0012127 4.2244e-07 0.031336"
+    ixx="0.0013934" ixy="1.9166e-08" ixz="-6.109e-06"
+    iyy="0.0014573" iyz="5.0986e-10" izz="0.001928"/>
+
+  <xacro:cyx_link name="arm_link1" mass="0.25741"
+    com="0.0073855 2.3388e-05 0.027706"
+    ixx="0.00017568" ixy="2.2641e-08" ixz="-2.3276e-05"
+    iyy="0.00014446" iyz="-3.4624e-08" izz="0.00017699"/>
+  <xacro:cyx_joint name="arm_joint1" parent="base_link" child="arm_link1"
+    xyz="0 0 0.07005" axis="0 0 1"/>
+
+  <xacro:cyx_link name="arm_link2" mass="0.291095551637955"
+    com="0.046790914321042 7.98516368374255e-09 0.0749999911242356"
+    ixx="0.000987640277650789" ixy="4.24887348615219e-10" ixz="3.49426031973421e-10"
+    iyy="0.000934555936839548" iyz="-6.07057223975763e-08" izz="6.74064421473607e-05"/>
+  <xacro:cyx_joint name="arm_joint2" parent="arm_link1" child="arm_link2"
+    xyz="0 0 0.04" axis="-1 0 0"/>
+
+  <xacro:cyx_link name="arm_link3" mass="0.356129833299829"
+    com="0.0108204699841922 -3.62794791258024e-05 0.039349601479323"
+    ixx="0.000333404942287812" ixy="3.45836280671357e-08" ixz="4.59636252166148e-05"
+    iyy="0.000324730301275489" iyz="-3.89804958554532e-08" izz="0.000173951625952965"/>
+  <xacro:cyx_joint name="arm_joint3" parent="arm_link2" child="arm_link3"
+    xyz="0 0 0.15" axis="-1 0 0"/>
+
+  <xacro:cyx_link name="arm_link4" mass="0.193970084743678"
+    com="-0.0282295028270834 7.21023449968123e-05 0.0365015980539524"
+    ixx="0.000149412543336046" ixy="-4.01283230946995e-08" ixz="5.0155364745969e-05"
+    iyy="0.000183688113521878" iyz="-9.89380915862307e-09" izz="0.000108326501257761"/>
+  <xacro:cyx_joint name="arm_joint4" parent="arm_link3" child="arm_link4"
+    xyz="0 0 0.09" axis="0 0 -1"/>
+
+  <xacro:cyx_link name="arm_link5" mass="0.344030121532498"
+    com="-0.0116945792569092 -2.45176941462066e-05 0.0406676882025497"
+    ixx="0.000328215723880632" ixy="2.28838746764749e-08" ixz="-4.59988329330128e-05"
+    iyy="0.000314177608402431" iyz="4.22204225140281e-08" izz="0.00016358226859689"/>
+  <xacro:cyx_joint name="arm_joint5" parent="arm_link4" child="arm_link5"
+    xyz="0 0 0.07" axis="1 0 0"/>
+
+  <xacro:cyx_link name="arm_link6" mass="0.0419837846347987"
+    com="-2.97659845036848e-06 0 0.00845162295206964"
+    ixx="7.16703794876015e-06" ixy="1.70357628324607e-13" ixz="-2.84116544954019e-10"
+    iyy="7.18861511610312e-06" iyz="0" izz="1.36654032792126e-05"/>
+  <xacro:cyx_joint name="arm_joint6" parent="arm_link5" child="arm_link6"
+    xyz="0 0 0.09" axis="0 0 -1" effort="8.0" velocity="2.0"/>
+
+  <xacro:if value="$(arg use_gazebo)">
+    <xacro:include filename="$(find cyx_robot_description)/urdf/gazebo_control.xacro"/>
+    <xacro:cyx_gazebo_control controllers_file="$(arg controllers_file)"/>
+  </xacro:if>
+</robot>

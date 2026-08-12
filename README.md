@@ -2,7 +2,7 @@
 
 六自由度串联机械臂的 ROS 2 控制工程骨架。机械模型由 SolidWorks 设计，并通过 sw2urdf 导出。
 
-本仓库基于 ROS 2 Humble、Gazebo Classic 和 `ros2_control`，当前已经具备模型显示、mock 控制以及 Gazebo + RViz 联合仿真能力。本阶段不包含 MoveIt 2、达妙电机硬件接口或实机测试。
+本仓库基于 ROS 2 Humble、Gazebo Classic、`ros2_control` 和 MoveIt 2，当前已经具备模型显示、mock 控制、Gazebo + RViz 联合仿真以及 MoveIt 2 运动规划与轨迹执行能力。本阶段不包含达妙电机硬件接口或实机测试。
 
 ## 机械臂概况
 
@@ -32,14 +32,18 @@
 - 实现 mock hardware 控制测试入口
 - 实现 Gazebo Classic world、模型生成、控制器加载及 RViz 联合启动
 - 配置 Gazebo 模型搜索路径，确保安装空间中的 STL mesh 可被正确加载
+- 将机械关节硬限制集中到 `joint_limits.xacro`，由 URDF 与 `ros2_control` 共同引用
+- 增加空的 `tool0` 规划坐标系，相对 `arm_link6` 沿 +Z 偏移 16 mm
+- 配置 MoveIt 2 的 SRDF、KDL、OMPL、关节运行限制和轨迹控制器映射
+- 实现 Gazebo、ros2_control、MoveIt 2 与 RViz MotionPlanning 联合启动
 
 尚未完成：
 
-- MoveIt 2 配置与运动规划
+- MoveIt 自碰撞矩阵的完整采样优化及真实场景障碍物配置
 - 达妙电机 `hardware_interface` 实现
 - 真机通信、标定与安全测试
 
-`cyx_robot_hardware` 和 `cyx_robot_moveit` 当前仅保留可构建的占位包，不属于本阶段实现范围。
+`cyx_robot_hardware` 当前仅保留可构建的占位包，不属于本阶段实现范围。
 
 ## 目录结构
 
@@ -65,6 +69,8 @@ cyx_arm/
 | sw2urdf CSV | `src/cyx_robot_description/urdf/cyx_arm_001.csv` |
 | 7 个 STL mesh | `src/cyx_robot_description/meshes/` |
 | 当前工作 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
+| 机械限制参数源 | `src/cyx_robot_description/urdf/joint_limits.xacro` |
+| 空 TCP 坐标系 | `src/cyx_robot_description/urdf/tool0.xacro` |
 | 关节额定/峰值参数 | `src/cyx_robot_control/config/joint_parameters.yaml` |
 | sw2urdf 原始辅助文件 | `src/cyx_robot_description/sw2urdf_export/` |
 
@@ -84,6 +90,20 @@ cyx_arm/
 | `arm_joint6` | `[-π, π]` | 20.943951 rad/s | 7 N·m | 12.566371 rad/s | 3 N·m |
 
 URDF 硬限制采用峰值速度和峰值力矩。额定值保存在 `joint_parameters.yaml`，用于后续连续运行限制及控制器调参。当前阻尼和摩擦是 Gazebo 数值稳定性所需的仿真估计值，并非电机实测值。
+
+`joint_limits.xacro` 是 URDF 和 `ros2_control` 的机械硬限制单一参数源。MoveIt 的连续运行速度与估算加速度另存于 `cyx_robot_moveit/config/joint_limits.yaml`：速度使用额定值；1～3 轴加速度暂估为 2 rad/s²，4～6 轴暂估为 4 rad/s²。
+
+### 末端规划坐标系
+
+当前没有实际末端执行器。规划链使用无质量、无 visual、无 collision 的空 `tool0`：
+
+```text
+arm_link6
+└── arm_link6_to_tool0 (fixed, xyz: 0 0 0.016 m)
+    └── tool0
+```
+
+MoveIt planning group 为 `base_link → tool0`，轨迹控制器仍只控制 `arm_joint1`～`arm_joint6`。
 
 ## 在开发服务器上开始工作
 
@@ -176,6 +196,26 @@ grep -R "Failed to find mesh" ~/.gazebo/server-*/default.log
 
 联合启动文件会将 `cyx_robot_description` 的父级 `share/` 目录加入 `GAZEBO_MODEL_PATH`，用于解析 `model://cyx_robot_description/meshes/*.STL`。修改模型或重新构建后，必须重新执行 `source install/setup.bash`。
 
+### MoveIt 2、Gazebo 与 RViz 联合仿真
+
+```bash
+ros2 launch cyx_robot_moveit demo.launch.py
+```
+
+也可以通过统一入口启动：
+
+```bash
+ros2 launch cyx_robot_bringup bringup.launch.py use_moveit:=true
+```
+
+在 RViz 的 MotionPlanning 显示中选择规划组 `cyx_arm`，拖动 `tool0` 的交互标记，然后使用 **Plan** 或 **Plan & Execute**。MoveIt 通过以下 Action 将六轴轨迹交给现有控制器：
+
+```text
+/joint_trajectory_controller/follow_joint_trajectory
+```
+
+当前没有配置 3D 相机，启动时关于 Octomap 或 `/recognize_objects` 不可用的提示不影响关节空间、末端位姿或笛卡尔路径规划。
+
 发送一条五秒轨迹进行测试：
 
 ```bash
@@ -191,7 +231,7 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 3. **ros2_control（已完成）**：加入六关节 position command interface，以及 position、velocity state interface。
 4. **控制器（已完成）**：配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`。
 5. **Gazebo 仿真（已完成）**：加载模型、控制器、GazeboSystem 和 RViz。
-6. **MoveIt 2**：生成 SRDF、运动学、关节限制、规划器及控制器映射。
+6. **MoveIt 2（已完成基础配置）**：配置 SRDF、KDL、OMPL、关节运行限制及控制器映射。
 7. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
 8. **统一启动（仿真已完成）**：当前由 `cyx_robot_bringup` 组合 Gazebo、模型、控制器和 RViz；规划和硬件待后续扩展。
 
@@ -210,9 +250,8 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 ros2 launch cyx_robot_description display.launch.py
 ros2 launch cyx_robot_simulation gazebo.launch.py
 ros2 launch cyx_robot_bringup bringup.launch.py
+ros2 launch cyx_robot_moveit demo.launch.py
 ```
-
-MoveIt 2 的 `demo.launch.py` 尚未实现。
 
 ## 后续达妙硬件规划（本阶段未实现）
 

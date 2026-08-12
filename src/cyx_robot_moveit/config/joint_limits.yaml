@@ -1,0 +1,22 @@
+# MoveIt continuous-operation limits. Positions remain sourced from the URDF.
+# Velocity uses rated motor values. Acceleration values are conservative
+# simulation estimates pending measured robot data.
+joint_limits:
+  arm_joint1: &large_joint
+    has_velocity_limits: true
+    max_velocity: 3.769911184
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  arm_joint2:
+    <<: *large_joint
+  arm_joint3:
+    <<: *large_joint
+  arm_joint4: &small_joint
+    has_velocity_limits: true
+    max_velocity: 12.566370614
+    has_acceleration_limits: true
+    max_acceleration: 4.0
+  arm_joint5:
+    <<: *small_joint
+  arm_joint6:
+    <<: *small_joint

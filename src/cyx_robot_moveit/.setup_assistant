@@ -1,0 +1,7 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: cyx_robot_description
+    relative_path: urdf/cyx_robot.urdf.xacro
+    xacro_args: use_gazebo:=false
+  srdf:
+    relative_path: config/cyx.srdf

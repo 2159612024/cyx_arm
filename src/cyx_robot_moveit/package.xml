@@ -6,5 +6,17 @@
   <maintainer email="2159612024@qq.com">cyx_arm maintainer</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>cyx_robot_control</exec_depend>
+  <exec_depend>cyx_robot_description</exec_depend>
+  <exec_depend>cyx_robot_simulation</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_kinematics</exec_depend>
+  <exec_depend>moveit_planners_ompl</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_ros_visualization</exec_depend>
+  <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>rviz2</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

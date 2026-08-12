@@ -25,12 +25,12 @@
         </xacro:unless>
       </hardware>
 
-      <xacro:cyx_control_joint name="arm_joint1" lower="-${pi}" upper="${pi}"/>
-      <xacro:cyx_control_joint name="arm_joint2" lower="-${pi / 2}" upper="${pi / 2}"/>
-      <xacro:cyx_control_joint name="arm_joint3" lower="-${4 * pi / 5}" upper="${4 * pi / 5}"/>
-      <xacro:cyx_control_joint name="arm_joint4" lower="-${pi}" upper="${pi}"/>
-      <xacro:cyx_control_joint name="arm_joint5" lower="-${pi / 2}" upper="${pi / 2}"/>
-      <xacro:cyx_control_joint name="arm_joint6" lower="-${pi}" upper="${pi}"/>
+      <xacro:cyx_control_joint name="arm_joint1" lower="${arm_joint1_lower}" upper="${arm_joint1_upper}"/>
+      <xacro:cyx_control_joint name="arm_joint2" lower="${arm_joint2_lower}" upper="${arm_joint2_upper}"/>
+      <xacro:cyx_control_joint name="arm_joint3" lower="${arm_joint3_lower}" upper="${arm_joint3_upper}"/>
+      <xacro:cyx_control_joint name="arm_joint4" lower="${arm_joint4_lower}" upper="${arm_joint4_upper}"/>
+      <xacro:cyx_control_joint name="arm_joint5" lower="${arm_joint5_lower}" upper="${arm_joint5_upper}"/>
+      <xacro:cyx_control_joint name="arm_joint6" lower="${arm_joint6_lower}" upper="${arm_joint6_upper}"/>
     </ros2_control>
 
     <xacro:if value="${use_gazebo}">

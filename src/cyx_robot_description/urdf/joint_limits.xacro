@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Single source of truth for simulated mechanical joint limits.
+    SI units: position [rad], velocity [rad/s], effort [N*m],
+    damping [N*m*s/rad], friction [N*m].
+  -->
+  <xacro:property name="arm_joint1_lower" value="-${pi}"/>
+  <xacro:property name="arm_joint1_upper" value="${pi}"/>
+  <xacro:property name="arm_joint1_velocity" value="5.864306287"/>
+  <xacro:property name="arm_joint1_effort" value="40.0"/>
+  <xacro:property name="arm_joint1_damping" value="0.1"/>
+  <xacro:property name="arm_joint1_friction" value="0.05"/>
+
+  <xacro:property name="arm_joint2_lower" value="-${pi / 2}"/>
+  <xacro:property name="arm_joint2_upper" value="${pi / 2}"/>
+  <xacro:property name="arm_joint2_velocity" value="5.864306287"/>
+  <xacro:property name="arm_joint2_effort" value="40.0"/>
+  <xacro:property name="arm_joint2_damping" value="0.1"/>
+  <xacro:property name="arm_joint2_friction" value="0.05"/>
+
+  <xacro:property name="arm_joint3_lower" value="-${4 * pi / 5}"/>
+  <xacro:property name="arm_joint3_upper" value="${4 * pi / 5}"/>
+  <xacro:property name="arm_joint3_velocity" value="5.864306287"/>
+  <xacro:property name="arm_joint3_effort" value="40.0"/>
+  <xacro:property name="arm_joint3_damping" value="0.1"/>
+  <xacro:property name="arm_joint3_friction" value="0.05"/>
+
+  <xacro:property name="arm_joint4_lower" value="-${pi}"/>
+  <xacro:property name="arm_joint4_upper" value="${pi}"/>
+  <xacro:property name="arm_joint4_velocity" value="20.943951024"/>
+  <xacro:property name="arm_joint4_effort" value="7.0"/>
+  <xacro:property name="arm_joint4_damping" value="0.05"/>
+  <xacro:property name="arm_joint4_friction" value="0.02"/>
+
+  <xacro:property name="arm_joint5_lower" value="-${pi / 2}"/>
+  <xacro:property name="arm_joint5_upper" value="${pi / 2}"/>
+  <xacro:property name="arm_joint5_velocity" value="20.943951024"/>
+  <xacro:property name="arm_joint5_effort" value="7.0"/>
+  <xacro:property name="arm_joint5_damping" value="0.05"/>
+  <xacro:property name="arm_joint5_friction" value="0.02"/>
+
+  <xacro:property name="arm_joint6_lower" value="-${pi}"/>
+  <xacro:property name="arm_joint6_upper" value="${pi}"/>
+  <xacro:property name="arm_joint6_velocity" value="20.943951024"/>
+  <xacro:property name="arm_joint6_effort" value="7.0"/>
+  <xacro:property name="arm_joint6_damping" value="0.05"/>
+  <xacro:property name="arm_joint6_friction" value="0.02"/>
+</robot>

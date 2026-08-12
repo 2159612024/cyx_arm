@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Empty tool-center-point frame. It deliberately has no inertial, visual,
+    or collision elements. The TCP is 16 mm along arm_link6 +Z.
+  -->
+  <xacro:macro name="cyx_tool0">
+    <link name="tool0"/>
+    <joint name="arm_link6_to_tool0" type="fixed">
+      <parent link="arm_link6"/>
+      <child link="tool0"/>
+      <origin xyz="0 0 0.016" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+</robot>

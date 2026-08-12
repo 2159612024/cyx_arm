@@ -216,6 +216,112 @@ ros2 launch cyx_robot_bringup bringup.launch.py use_moveit:=true
 
 当前没有配置 3D 相机，启动时关于 Octomap 或 `/recognize_objects` 不可用的提示不影响关节空间、末端位姿或笛卡尔路径规划。
 
+#### MoveIt 轨迹规划与执行逻辑
+
+联合启动后的数据流如下：
+
+```text
+Gazebo / gazebo_ros2_control
+    └── /joint_states
+          ├── robot_state_publisher ──> /tf
+          └── move_group 当前状态监视器
+
+RViz MotionPlanning 的目标位姿或目标关节值
+    └── move_group
+          ├── KDL：正/逆运动学
+          ├── Planning Scene：机器人状态与碰撞检查
+          ├── OMPL / RRTConnect：搜索无碰撞关节路径
+          └── 时间参数化：生成满足速度、加速度限制的轨迹
+                └── FollowJointTrajectory Action
+                      └── joint_trajectory_controller
+                            └── position command interface
+                                  └── GazeboSystem
+                                        └── 机械臂运动
+```
+
+各组件职责：
+
+- Gazebo 负责机械臂动力学和关节运动仿真。
+- `joint_state_broadcaster` 发布六个关节的实际状态。
+- `robot_state_publisher` 根据关节状态发布机器人 TF。
+- `move_group` 负责运动学、碰撞检测、路径规划、时间参数化和轨迹执行管理。
+- RViz MotionPlanning 是目标设置、规划预览和执行操作界面，本身不直接控制关节。
+- `joint_trajectory_controller` 接收 MoveIt 生成的带时间戳六轴轨迹，并向 Gazebo position interface 输出命令。
+
+#### 使用 RViz 进行规划
+
+1. 启动联合仿真，等待终端出现：
+
+   ```text
+   You can start planning now!
+   ```
+
+2. 确认 Gazebo 已显示机械臂，RViz MotionPlanning 的 Planning Group 为 `cyx_arm`。
+3. 在 MotionPlanning 的 **Planning** 页签选择起点：
+   - 使用 **Current State**：以 Gazebo 当前姿态为起点；
+   - 使用 **home**：采用 SRDF 中定义的六关节零位姿态。
+4. 设置目标：
+   - 拖动 `tool0` 的交互标记，指定目标位置和姿态；或
+   - 在 **Joints** 页签直接输入六个目标关节角。
+5. 点击 **Plan**：只计算并显示轨迹，不向控制器发送命令。
+6. 检查 RViz 中的规划预览无误后点击 **Execute**，或直接使用 **Plan & Execute**。
+7. 执行时 MoveIt 通过以下 Action 发送轨迹：
+
+   ```text
+   /joint_trajectory_controller/follow_joint_trajectory
+   ```
+
+8. Gazebo 执行轨迹后通过 `/joint_states` 返回实际位置，MoveIt 和 RViz 随之更新当前状态。
+
+`tool0` 是相对 `arm_link6` 沿 +Z 偏移 16 mm 的空 TCP 坐标系。拖动交互标记时规划的是 `tool0` 位姿，不是 STL 几何中心或 `arm_joint6` 本身。
+
+#### Plan 与 Execute 的区别
+
+| 操作 | 结果 |
+| --- | --- |
+| **Plan** | 计算、碰撞检查并预览轨迹，不移动 Gazebo 机械臂 |
+| **Execute** | 执行最近一次成功规划的轨迹 |
+| **Plan & Execute** | 重新规划，成功后立即发送给控制器执行 |
+
+调试新目标时建议先使用 **Plan** 检查轨迹，再使用 **Execute**。
+
+#### 运行状态检查
+
+检查控制器：
+
+```bash
+ros2 control list_controllers
+```
+
+预期输出包含：
+
+```text
+joint_state_broadcaster       joint_state_broadcaster/JointStateBroadcaster       active
+joint_trajectory_controller  joint_trajectory_controller/JointTrajectoryController active
+```
+
+检查 MoveIt Action：
+
+```bash
+ros2 action list | grep -E 'move_action|execute_trajectory|follow_joint_trajectory'
+```
+
+检查当前关节状态：
+
+```bash
+ros2 topic echo /joint_states --once
+```
+
+如果 **Plan** 成功但 **Execute** 失败，应优先检查：
+
+- `joint_trajectory_controller` 是否为 `active`；
+- `/joint_states` 是否持续更新；
+- `/joint_trajectory_controller/follow_joint_trajectory` 是否存在；
+- 起点是否与 Gazebo 当前状态一致；
+- 轨迹是否超过控制器容差或执行超时。
+
+如果规划失败，应检查目标是否超出工作空间、是否超过关节限制，以及起点或目标是否发生自碰撞。
+
 发送一条五秒轨迹进行测试：
 
 ```bash

@@ -8,6 +8,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>hardware_interface</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
@@ -17,5 +18,7 @@
 
   <export>
     <build_type>ament_cmake</build_type>
+    <!-- Expose share/ so Gazebo resolves model://cyx_robot_description/meshes/*.STL. -->
+    <gazebo_ros gazebo_model_path="${prefix}/.."/>
   </export>
 </package>

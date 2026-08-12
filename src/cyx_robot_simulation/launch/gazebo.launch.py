@@ -1,9 +1,19 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    EnvironmentVariable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -23,6 +33,16 @@ def generate_launch_description():
     )
     default_world = PathJoinSubstitution(
         [FindPackageShare('cyx_robot_simulation'), 'worlds', 'empty.world']
+    )
+    # Gazebo converts package:// mesh URIs to model:// URIs. Add the parent
+    # share directory so model://cyx_robot_description resolves reliably.
+    gazebo_model_path = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_PATH',
+        value=[
+            PathJoinSubstitution([FindPackageShare('cyx_robot_description'), '..']),
+            ':',
+            EnvironmentVariable('GAZEBO_MODEL_PATH', default_value=''),
+        ],
     )
     robot_description = ParameterValue(
         Command([
@@ -87,6 +107,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument('world', default_value=default_world),
+        gazebo_model_path,
         gazebo,
         state_publisher,
         spawn_robot,

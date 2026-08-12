@@ -86,7 +86,7 @@
   </link>
   <joint
     name="arm_joint1"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.07005"
       rpy="0 0 0" />
@@ -97,10 +97,11 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.141592654"
+      upper="3.141592654"
+      effort="40.0"
+      velocity="5.864306287" />
+    <dynamics damping="0.1" friction="0.05" />
   </joint>
   <link
     name="arm_link2">
@@ -144,7 +145,7 @@
   </link>
   <joint
     name="arm_joint2"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.04"
       rpy="0 0 0" />
@@ -155,10 +156,11 @@
     <axis
       xyz="-1 0 0" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.570796327"
+      upper="1.570796327"
+      effort="40.0"
+      velocity="5.864306287" />
+    <dynamics damping="0.1" friction="0.05" />
   </joint>
   <link
     name="arm_link3">
@@ -202,7 +204,7 @@
   </link>
   <joint
     name="arm_joint3"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.15"
       rpy="0 0 0" />
@@ -213,10 +215,11 @@
     <axis
       xyz="-1 0 0" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-2.513274123"
+      upper="2.513274123"
+      effort="40.0"
+      velocity="5.864306287" />
+    <dynamics damping="0.1" friction="0.05" />
   </joint>
   <link
     name="arm_link4">
@@ -260,7 +263,7 @@
   </link>
   <joint
     name="arm_joint4"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.09"
       rpy="0 0 0" />
@@ -271,10 +274,11 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.141592654"
+      upper="3.141592654"
+      effort="7.0"
+      velocity="20.943951024" />
+    <dynamics damping="0.05" friction="0.02" />
   </joint>
   <link
     name="arm_link5">
@@ -318,7 +322,7 @@
   </link>
   <joint
     name="arm_joint5"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.07"
       rpy="0 0 0" />
@@ -329,10 +333,11 @@
     <axis
       xyz="1 0 0" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-1.570796327"
+      upper="1.570796327"
+      effort="7.0"
+      velocity="20.943951024" />
+    <dynamics damping="0.05" friction="0.02" />
   </joint>
   <link
     name="arm_link6">
@@ -376,7 +381,7 @@
   </link>
   <joint
     name="arm_joint6"
-    type="continuous">
+    type="revolute">
     <origin
       xyz="0 0 0.09"
       rpy="0 0 0" />
@@ -387,9 +392,10 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="0"
-      upper="0"
-      effort="0"
-      velocity="0" />
+      lower="-3.141592654"
+      upper="3.141592654"
+      effort="7.0"
+      velocity="20.943951024" />
+    <dynamics damping="0.05" friction="0.02" />
   </joint>
 </robot>

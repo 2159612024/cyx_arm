@@ -23,12 +23,15 @@
 - 迁移 sw2urdf 导出的 URDF、CSV、STL、配置、launch 和导出日志
 - 将工作 URDF 的 mesh URI 从 `package://cyx_arm_001/...` 调整为 `package://cyx_robot_description/...`
 - 保留 sw2urdf 原始导出辅助文件，方便后续追溯
-- 将工作模型转换为可复用的 Xacro，并补充非零速度、力矩与阻尼参数
+- 将工作模型转换为可复用的 Xacro，六个关节均配置为带位置限制的 `revolute`
+- 将电机转速由 rpm 换算为 rad/s，并同步位置、峰值速度和峰值力矩到 URDF 与 `ros2_control`
+- 保留关节额定/峰值参数及仿真阻尼估计到 `cyx_robot_control/config/joint_parameters.yaml`
 - 实现 `robot_state_publisher`、关节状态 GUI 和 RViz 模型显示
 - 配置 position command 及 position/velocity state interface
 - 配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`
 - 实现 mock hardware 控制测试入口
 - 实现 Gazebo Classic world、模型生成、控制器加载及 RViz 联合启动
+- 配置 Gazebo 模型搜索路径，确保安装空间中的 STL mesh 可被正确加载
 
 尚未完成：
 
@@ -62,9 +65,25 @@ cyx_arm/
 | sw2urdf CSV | `src/cyx_robot_description/urdf/cyx_arm_001.csv` |
 | 7 个 STL mesh | `src/cyx_robot_description/meshes/` |
 | 当前工作 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
+| 关节额定/峰值参数 | `src/cyx_robot_control/config/joint_parameters.yaml` |
 | sw2urdf 原始辅助文件 | `src/cyx_robot_description/sw2urdf_export/` |
 
 `sw2urdf_export/` 中的 package、CMake 和 launch 文件由 ROS 1 风格的导出器生成，仅作为原始资料保留，不应直接用于 ROS 2 构建。
+
+### 关节限制
+
+所有内部参数均使用 SI 单位：位置为 rad、速度为 rad/s、力矩为 N·m。
+
+| 关节 | 位置范围 | 峰值速度 | 峰值力矩 | 额定速度 | 额定力矩 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `arm_joint1` | `[-π, π]` | 5.864306 rad/s | 40 N·m | 3.769911 rad/s | 14 N·m |
+| `arm_joint2` | `[-π/2, π/2]` | 5.864306 rad/s | 40 N·m | 3.769911 rad/s | 14 N·m |
+| `arm_joint3` | `[-4π/5, 4π/5]` | 5.864306 rad/s | 40 N·m | 3.769911 rad/s | 14 N·m |
+| `arm_joint4` | `[-π, π]` | 20.943951 rad/s | 7 N·m | 12.566371 rad/s | 3 N·m |
+| `arm_joint5` | `[-π/2, π/2]` | 20.943951 rad/s | 7 N·m | 12.566371 rad/s | 3 N·m |
+| `arm_joint6` | `[-π, π]` | 20.943951 rad/s | 7 N·m | 12.566371 rad/s | 3 N·m |
+
+URDF 硬限制采用峰值速度和峰值力矩。额定值保存在 `joint_parameters.yaml`，用于后续连续运行限制及控制器调参。当前阻尼和摩擦是 Gazebo 数值稳定性所需的仿真估计值，并非电机实测值。
 
 ## 在开发服务器上开始工作
 
@@ -149,6 +168,14 @@ ros2 control list_controllers
 
 预期 `joint_state_broadcaster` 和 `joint_trajectory_controller` 均为 `active`。
 
+若 Gazebo 中实体存在但模型不可见，可检查 mesh 加载日志：
+
+```bash
+grep -R "Failed to find mesh" ~/.gazebo/server-*/default.log
+```
+
+联合启动文件会将 `cyx_robot_description` 的父级 `share/` 目录加入 `GAZEBO_MODEL_PATH`，用于解析 `model://cyx_robot_description/meshes/*.STL`。修改模型或重新构建后，必须重新执行 `source install/setup.bash`。
+
 发送一条五秒轨迹进行测试：
 
 ```bash
@@ -211,4 +238,4 @@ MoveIt 2 的 `demo.launch.py` 尚未实现。
 
 ## 说明
 
-当前工作空间已在 Ubuntu 22.04 + ROS 2 Humble 环境完成 Xacro/URDF 解析、Python launch 语法检查、全包 `colcon build`，并验证 mock hardware 和两个控制器能够完成加载与激活。Gazebo 已验证模型生成成功；完整 GUI 效果仍应在带显示环境的开发终端中按上述命令确认。
+当前工作空间已在 Ubuntu 22.04 + ROS 2 Humble 环境完成 Xacro/URDF 解析、关节限制一致性检查、Python launch 语法检查和全包 `colcon build`，并验证 mock hardware 和两个控制器能够完成加载与激活。Gazebo 与 RViz 联合仿真及 STL 模型显示已由项目使用者检查确认。

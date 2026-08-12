@@ -1,12 +1,14 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="cyx_control_joint" params="name">
+  <xacro:macro name="cyx_control_joint" params="name lower upper initial_position:=0.0">
     <joint name="${name}">
       <command_interface name="position">
-        <param name="min">-6.283185307</param>
-        <param name="max">6.283185307</param>
+        <param name="min">${lower}</param>
+        <param name="max">${upper}</param>
       </command_interface>
-      <state_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">${initial_position}</param>
+      </state_interface>
       <state_interface name="velocity"/>
     </joint>
   </xacro:macro>
@@ -23,12 +25,12 @@
         </xacro:unless>
       </hardware>
 
-      <xacro:cyx_control_joint name="arm_joint1"/>
-      <xacro:cyx_control_joint name="arm_joint2"/>
-      <xacro:cyx_control_joint name="arm_joint3"/>
-      <xacro:cyx_control_joint name="arm_joint4"/>
-      <xacro:cyx_control_joint name="arm_joint5"/>
-      <xacro:cyx_control_joint name="arm_joint6"/>
+      <xacro:cyx_control_joint name="arm_joint1" lower="-${pi}" upper="${pi}"/>
+      <xacro:cyx_control_joint name="arm_joint2" lower="-${pi / 2}" upper="${pi / 2}"/>
+      <xacro:cyx_control_joint name="arm_joint3" lower="-${4 * pi / 5}" upper="${4 * pi / 5}"/>
+      <xacro:cyx_control_joint name="arm_joint4" lower="-${pi}" upper="${pi}"/>
+      <xacro:cyx_control_joint name="arm_joint5" lower="-${pi / 2}" upper="${pi / 2}"/>
+      <xacro:cyx_control_joint name="arm_joint6" lower="-${pi}" upper="${pi}"/>
     </ros2_control>
 
     <xacro:if value="${use_gazebo}">

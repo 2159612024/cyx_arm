@@ -1,0 +1,38 @@
+# Joint-output parameters. SI units are used throughout.
+# Peak values define URDF hard limits; rated values are retained for later
+# continuous-operation limits and controller tuning.
+joint_parameters:
+  arm_joint1: &large_joint
+    lower: -3.141592654       # rad
+    upper: 3.141592654        # rad
+    peak_velocity: 5.864306287       # rad/s (56 rpm)
+    rated_velocity: 3.769911184      # rad/s (36 rpm)
+    peak_effort: 40.0                # N*m
+    rated_effort: 14.0               # N*m
+    damping_estimate: 0.1            # N*m*s/rad
+    friction_estimate: 0.05          # N*m
+  arm_joint2:
+    <<: *large_joint
+    lower: -1.570796327
+    upper: 1.570796327
+  arm_joint3:
+    <<: *large_joint
+    lower: -2.513274123
+    upper: 2.513274123
+  arm_joint4: &small_joint
+    lower: -3.141592654
+    upper: 3.141592654
+    peak_velocity: 20.943951024      # rad/s (200 rpm)
+    rated_velocity: 12.566370614     # rad/s (120 rpm)
+    peak_effort: 7.0                 # N*m
+    rated_effort: 3.0                # N*m
+    damping_estimate: 0.05           # N*m*s/rad
+    friction_estimate: 0.02          # N*m
+  arm_joint5:
+    <<: *small_joint
+    lower: -1.570796327
+    upper: 1.570796327
+  arm_joint6:
+    <<: *small_joint
+    lower: -3.141592654
+    upper: 3.141592654

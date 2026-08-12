@@ -28,14 +28,15 @@
     </link>
   </xacro:macro>
 
-  <xacro:macro name="cyx_joint" params="name parent child xyz axis effort:=20.0 velocity:=1.5">
-    <joint name="${name}" type="continuous">
+  <!-- damping/friction are provisional simulation estimates, not measured motor data. -->
+  <xacro:macro name="cyx_joint" params="name parent child xyz axis lower upper effort velocity damping friction">
+    <joint name="${name}" type="revolute">
       <origin xyz="${xyz}" rpy="0 0 0"/>
       <parent link="${parent}"/>
       <child link="${child}"/>
       <axis xyz="${axis}"/>
-      <limit effort="${effort}" velocity="${velocity}"/>
-      <dynamics damping="0.1" friction="0.05"/>
+      <limit lower="${lower}" upper="${upper}" effort="${effort}" velocity="${velocity}"/>
+      <dynamics damping="${damping}" friction="${friction}"/>
     </joint>
   </xacro:macro>
 
@@ -57,42 +58,54 @@
     ixx="0.00017568" ixy="2.2641e-08" ixz="-2.3276e-05"
     iyy="0.00014446" iyz="-3.4624e-08" izz="0.00017699"/>
   <xacro:cyx_joint name="arm_joint1" parent="base_link" child="arm_link1"
-    xyz="0 0 0.07005" axis="0 0 1"/>
+    xyz="0 0 0.07005" axis="0 0 1"
+    lower="-${pi}" upper="${pi}" effort="40.0" velocity="5.864306287"
+    damping="0.1" friction="0.05"/>
 
   <xacro:cyx_link name="arm_link2" mass="0.291095551637955"
     com="0.046790914321042 7.98516368374255e-09 0.0749999911242356"
     ixx="0.000987640277650789" ixy="4.24887348615219e-10" ixz="3.49426031973421e-10"
     iyy="0.000934555936839548" iyz="-6.07057223975763e-08" izz="6.74064421473607e-05"/>
   <xacro:cyx_joint name="arm_joint2" parent="arm_link1" child="arm_link2"
-    xyz="0 0 0.04" axis="-1 0 0"/>
+    xyz="0 0 0.04" axis="-1 0 0"
+    lower="-${pi / 2}" upper="${pi / 2}" effort="40.0" velocity="5.864306287"
+    damping="0.1" friction="0.05"/>
 
   <xacro:cyx_link name="arm_link3" mass="0.356129833299829"
     com="0.0108204699841922 -3.62794791258024e-05 0.039349601479323"
     ixx="0.000333404942287812" ixy="3.45836280671357e-08" ixz="4.59636252166148e-05"
     iyy="0.000324730301275489" iyz="-3.89804958554532e-08" izz="0.000173951625952965"/>
   <xacro:cyx_joint name="arm_joint3" parent="arm_link2" child="arm_link3"
-    xyz="0 0 0.15" axis="-1 0 0"/>
+    xyz="0 0 0.15" axis="-1 0 0"
+    lower="-${4 * pi / 5}" upper="${4 * pi / 5}" effort="40.0" velocity="5.864306287"
+    damping="0.1" friction="0.05"/>
 
   <xacro:cyx_link name="arm_link4" mass="0.193970084743678"
     com="-0.0282295028270834 7.21023449968123e-05 0.0365015980539524"
     ixx="0.000149412543336046" ixy="-4.01283230946995e-08" ixz="5.0155364745969e-05"
     iyy="0.000183688113521878" iyz="-9.89380915862307e-09" izz="0.000108326501257761"/>
   <xacro:cyx_joint name="arm_joint4" parent="arm_link3" child="arm_link4"
-    xyz="0 0 0.09" axis="0 0 -1"/>
+    xyz="0 0 0.09" axis="0 0 -1"
+    lower="-${pi}" upper="${pi}" effort="7.0" velocity="20.943951024"
+    damping="0.05" friction="0.02"/>
 
   <xacro:cyx_link name="arm_link5" mass="0.344030121532498"
     com="-0.0116945792569092 -2.45176941462066e-05 0.0406676882025497"
     ixx="0.000328215723880632" ixy="2.28838746764749e-08" ixz="-4.59988329330128e-05"
     iyy="0.000314177608402431" iyz="4.22204225140281e-08" izz="0.00016358226859689"/>
   <xacro:cyx_joint name="arm_joint5" parent="arm_link4" child="arm_link5"
-    xyz="0 0 0.07" axis="1 0 0"/>
+    xyz="0 0 0.07" axis="1 0 0"
+    lower="-${pi / 2}" upper="${pi / 2}" effort="7.0" velocity="20.943951024"
+    damping="0.05" friction="0.02"/>
 
   <xacro:cyx_link name="arm_link6" mass="0.0419837846347987"
     com="-2.97659845036848e-06 0 0.00845162295206964"
     ixx="7.16703794876015e-06" ixy="1.70357628324607e-13" ixz="-2.84116544954019e-10"
     iyy="7.18861511610312e-06" iyz="0" izz="1.36654032792126e-05"/>
   <xacro:cyx_joint name="arm_joint6" parent="arm_link5" child="arm_link6"
-    xyz="0 0 0.09" axis="0 0 -1" effort="8.0" velocity="2.0"/>
+    xyz="0 0 0.09" axis="0 0 -1"
+    lower="-${pi}" upper="${pi}" effort="7.0" velocity="20.943951024"
+    damping="0.05" friction="0.02"/>
 
   <xacro:cyx_ros2_control
     use_gazebo="$(arg use_gazebo)"

@@ -483,20 +483,24 @@ private:
     std::thread([this,msg]{
       std::string error; Options o; o.end_effector_link=msg->end_effector_link; o.reference_frame=msg->reference_frame;
       o.velocity_scaling=0.1; o.acceleration_scaling=0.1;
-      set_status(Status::PLANNING,"planning Cartesian jog",0.1);
+      set_status(Status::PLANNING,"planning position-only jog",0.1);
       if (!configure(o,error)) {set_status(Status::FAILED,error,0); release(); return;}
       auto current=move_group_->getCurrentPose(normalized(o).end_effector_link);
       if (!msg->header.frame_id.empty() && current.header.frame_id!=msg->header.frame_id) {
         set_status(Status::FAILED,"jog frame must match current MoveIt pose reference frame",0); release(); return;
       }
-      auto target=current.pose; target.position.x+=msg->translation.x; target.position.y+=msg->translation.y; target.position.z+=msg->translation.z;
-      moveit_msgs::msg::RobotTrajectory trajectory;
-      double fraction=move_group_->computeCartesianPath({target},jog_eef_step_,0.0,trajectory,true);
-      if (fraction<jog_fraction_) {set_status(Status::FAILED,"jog path incomplete",0); release(); return;}
-      if (!parameterize(trajectory,o,error)) {set_status(Status::FAILED,error,0); release(); return;}
-      moveit::planning_interface::MoveGroupInterface::Plan plan; plan.trajectory_=trajectory;
+      const auto x = current.pose.position.x + msg->translation.x;
+      const auto y = current.pose.position.y + msg->translation.y;
+      const auto z = current.pose.position.z + msg->translation.z;
+      if (!move_group_->setPositionTarget(x, y, z, normalized(o).end_effector_link)) {
+        set_status(Status::FAILED,"unable to set jog position target",0); release(); return;
+      }
+      moveit::planning_interface::MoveGroupInterface::Plan plan;
+      const bool planned = plan_current(plan,error);
+      move_group_->clearPoseTargets();
+      if (!planned) {set_status(Status::FAILED,error,0); release(); return;}
       if (!execute(plan,error)) {set_status(cancel_requested_?Status::CANCELED:Status::FAILED,error,0); release(); return;}
-      set_status(Status::SUCCEEDED,"jog complete",1.0); release();
+      set_status(Status::SUCCEEDED,"position-only jog complete",1.0); release();
     }).detach();
   }
 

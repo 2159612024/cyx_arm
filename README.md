@@ -512,7 +512,7 @@ ros2 launch cyx_robot_planning keyboard_jog.launch.py
 
 关节命令发布到 `/cyx_arm/joint_jog`。运动服务器读取当前六关节角，在选中关节上叠加 `joint_step`，然后使用 MoveIt 进行限位、自碰撞检查、规划和轨迹执行，不会绕过安全检查直接操作控制器。
 
-当前按要求将 `joint_step` 默认设置为 `10.0 rad`。该数值超过一圈半，通常会超出本机械臂的关节范围，因此服务端会返回 `joint jog target violates joint bounds` 并拒绝运动。若目标是每次移动 10°，请修改：
+当前关节步长为 10°；ROS 和 MoveIt 内部统一使用弧度，因此配置值为：
 
 ```yaml
 # cyx_robot_planning/config/keyboard_jog.yaml
@@ -524,15 +524,17 @@ joint_step: 0.1745329252
 ```text
 读取当前末端位姿
   → 叠加 0.010 m 位移
-  → MoveIt 计算笛卡尔路径
-  → 检查 IK、碰撞、关节限制和完成比例
-  → 时间参数化
+  → 只设置 tool0 的 XYZ 位置目标，不设置姿态目标
+  → MoveIt 自由选择末端姿态并进行关节空间规划
+  → 检查 IK、碰撞和关节限制
   → joint_trajectory_controller 执行
 ```
 
+键盘笛卡尔模式只约束目标位置，不保持当前末端姿态，因此比完整位姿约束更容易在奇异姿态附近找到解。相应地，该模式不保证末端姿态不变、不保证 TCP 沿严格直线移动，也可能选到与当前姿态差异较大的 IK 解；需要保持姿态或执行直线轨迹时，应使用 `/cyx_arm/move_to_pose` 或 `/cyx_arm/follow_cartesian`。
+
 两种模式均采用“一次按键、一次安全规划和执行”，不允许按键命令堆积。其他 Action 正在运行时微动会被拒绝；微动执行期间其他运动请求也会被拒绝。末端 link、参考坐标系、笛卡尔步长和关节角步长可在 `cyx_robot_planning/config/keyboard_jog.yaml` 中修改。
 
-在零位完全伸直等奇异姿态附近，某些方向的 10 mm 笛卡尔移动可能没有完整 IK 路径，服务器会拒绝该次微动，而不会强制执行不完整轨迹。
+即使只约束位置，目标仍可能因工作空间边界、自碰撞或关节限制而规划失败，服务器会安全拒绝该次微动。
 
 ### 自碰撞分析
 

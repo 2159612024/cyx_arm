@@ -1,9 +1,8 @@
 cyx_keyboard_jog:
   ros__parameters:
     step_size: 0.010
-    # WARNING: 10 rad usually exceeds the configured joint limits. For a
-    # practical 10-degree jog, use 0.1745329252 instead.
-    joint_step: 10.0
+    # 10 degrees expressed in the ROS/MoveIt SI unit (radians).
+    joint_step: 0.1745329252
     reference_frame: world
     end_effector_link: tool0
     duration: 1.0

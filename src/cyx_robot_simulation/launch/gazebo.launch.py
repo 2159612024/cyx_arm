@@ -21,6 +21,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
+    use_gazebo_gui = LaunchConfiguration('use_gazebo_gui')
     world = LaunchConfiguration('world')
     model = PathJoinSubstitution(
         [FindPackageShare('cyx_robot_description'), 'urdf', 'cyx_robot.urdf.xacro']
@@ -57,7 +58,11 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([FindPackageShare('gazebo_ros'), 'launch', 'gazebo.launch.py'])
         ),
-        launch_arguments={'world': world, 'verbose': 'false'}.items(),
+        launch_arguments={
+            'world': world,
+            'verbose': 'false',
+            'gui': use_gazebo_gui,
+        }.items(),
     )
     state_publisher = Node(
         package='robot_state_publisher',
@@ -106,6 +111,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
+        DeclareLaunchArgument('use_gazebo_gui', default_value='true'),
         DeclareLaunchArgument('world', default_value=default_world),
         gazebo_model_path,
         gazebo,

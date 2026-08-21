@@ -16,7 +16,11 @@ def generate_launch_description():
                 FindPackageShare('cyx_robot_simulation'), 'launch', 'gazebo.launch.py'
             ])
         ),
-        launch_arguments={'use_rviz': LaunchConfiguration('use_rviz')}.items(),
+        launch_arguments={
+            'use_rviz': LaunchConfiguration('use_rviz'),
+            'use_gazebo_gui': LaunchConfiguration('use_gazebo_gui'),
+            'world': LaunchConfiguration('world'),
+        }.items(),
         condition=UnlessCondition(use_moveit),
     )
     moveit_launch = IncludeLaunchDescription(
@@ -28,12 +32,22 @@ def generate_launch_description():
         launch_arguments={
             'use_motion_server': use_motion_server,
             'use_keyboard_jog': use_keyboard_jog,
+            'use_rviz': LaunchConfiguration('use_rviz'),
+            'use_gazebo_gui': LaunchConfiguration('use_gazebo_gui'),
+            'world': LaunchConfiguration('world'),
         }.items(),
         condition=IfCondition(use_moveit),
     )
 
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
+        DeclareLaunchArgument('use_gazebo_gui', default_value='true'),
+        DeclareLaunchArgument(
+            'world',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('cyx_robot_simulation'), 'worlds', 'empty.world'
+            ]),
+        ),
         DeclareLaunchArgument('use_moveit', default_value='false'),
         DeclareLaunchArgument('use_motion_server', default_value='true'),
         DeclareLaunchArgument('use_keyboard_jog', default_value='false'),

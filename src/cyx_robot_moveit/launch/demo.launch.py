@@ -10,6 +10,9 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    use_rviz = LaunchConfiguration('use_rviz')
+    use_gazebo_gui = LaunchConfiguration('use_gazebo_gui')
+    world = LaunchConfiguration('world')
     use_motion_server = LaunchConfiguration('use_motion_server')
     use_keyboard_jog = LaunchConfiguration('use_keyboard_jog')
     moveit_config = (
@@ -38,7 +41,11 @@ def generate_launch_description():
                 'gazebo.launch.py',
             ])
         ),
-        launch_arguments={'use_rviz': 'false'}.items(),
+        launch_arguments={
+            'use_rviz': 'false',
+            'use_gazebo_gui': use_gazebo_gui,
+            'world': world,
+        }.items(),
     )
 
     move_group = Node(
@@ -49,6 +56,7 @@ def generate_launch_description():
             moveit_config.to_dict(),
             {'use_sim_time': True},
         ],
+        condition=IfCondition(use_rviz),
     )
 
     rviz_config = PathJoinSubstitution([
@@ -98,6 +106,14 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('use_rviz', default_value='true'),
+        DeclareLaunchArgument('use_gazebo_gui', default_value='true'),
+        DeclareLaunchArgument(
+            'world',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('cyx_robot_simulation'), 'worlds', 'empty.world'
+            ]),
+        ),
         DeclareLaunchArgument('use_motion_server', default_value='true'),
         DeclareLaunchArgument('use_keyboard_jog', default_value='false'),
         simulation,

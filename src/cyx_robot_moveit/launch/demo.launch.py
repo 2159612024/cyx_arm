@@ -56,12 +56,9 @@ def generate_launch_description():
             moveit_config.to_dict(),
             {'use_sim_time': True},
         ],
-        condition=IfCondition(use_rviz),
     )
 
-    rviz_config = PathJoinSubstitution([
-        FindPackageShare('cyx_robot_moveit'), 'config', 'moveit.rviz'
-    ])
+    rviz_config = LaunchConfiguration('rviz_config')
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -74,6 +71,7 @@ def generate_launch_description():
             moveit_config.joint_limits,
             {'use_sim_time': True},
         ],
+        condition=IfCondition(use_rviz),
     )
 
     motion_server_config = PathJoinSubstitution([
@@ -107,6 +105,12 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
+        DeclareLaunchArgument(
+            'rviz_config',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('cyx_robot_moveit'), 'config', 'moveit.rviz'
+            ]),
+        ),
         DeclareLaunchArgument('use_gazebo_gui', default_value='true'),
         DeclareLaunchArgument(
             'world',

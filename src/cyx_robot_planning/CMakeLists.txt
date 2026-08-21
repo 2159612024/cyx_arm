@@ -17,6 +17,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 add_executable(cyx_motion_server src/motion_server.cpp)
 ament_target_dependencies(cyx_motion_server
@@ -31,7 +32,12 @@ add_executable(cyx_self_collision_analyzer src/self_collision_analyzer.cpp)
 ament_target_dependencies(cyx_self_collision_analyzer
   moveit_core moveit_ros_planning rclcpp)
 
+add_executable(cyx_workspace_visualizer src/workspace_visualizer.cpp)
+ament_target_dependencies(cyx_workspace_visualizer
+  geometry_msgs moveit_core moveit_ros_planning rclcpp std_msgs visualization_msgs)
+
 install(TARGETS cyx_motion_server cyx_keyboard_jog cyx_self_collision_analyzer
+  cyx_workspace_visualizer
   DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 

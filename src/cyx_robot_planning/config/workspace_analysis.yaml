@@ -1,0 +1,11 @@
+cyx_workspace_visualizer:
+  ros__parameters:
+    planning_group: cyx_arm
+    end_effector_link: tool0
+    sample_count: 50000
+    random_seed: 42
+    include_colliding_samples: false
+    near_joint_limit_ratio: 0.05
+    marker_point_size: 0.005
+    color_mode: manipulability
+    output_csv: ""

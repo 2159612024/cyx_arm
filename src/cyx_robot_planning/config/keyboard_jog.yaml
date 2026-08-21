@@ -1,6 +1,6 @@
 cyx_keyboard_jog:
   ros__parameters:
     step_size: 0.010
-    reference_frame: base_link
+    reference_frame: world
     end_effector_link: tool0
     duration: 1.0

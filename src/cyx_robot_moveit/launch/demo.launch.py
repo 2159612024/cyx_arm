@@ -68,14 +68,22 @@ def generate_launch_description():
         ],
     )
 
-    planning_server = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('cyx_robot_planning'),
-                'launch',
-                'planning.launch.py',
-            ])
-        ),
+    motion_server_config = PathJoinSubstitution([
+        FindPackageShare('cyx_robot_planning'), 'config', 'motion_server.yaml'
+    ])
+    planning_server = Node(
+        package='cyx_robot_planning',
+        executable='cyx_motion_server',
+        name='cyx_motion_server',
+        output='screen',
+        parameters=[
+            motion_server_config,
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.joint_limits,
+            {'use_sim_time': True},
+        ],
         condition=IfCondition(use_motion_server),
     )
     keyboard_jog = IncludeLaunchDescription(

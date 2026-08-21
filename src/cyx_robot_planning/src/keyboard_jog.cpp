@@ -30,7 +30,7 @@ public:
   KeyboardJog() : Node("cyx_keyboard_jog")
   {
     step_ = declare_parameter("step_size", 0.010);
-    frame_ = declare_parameter("reference_frame", "base_link");
+    frame_ = declare_parameter("reference_frame", "world");
     eef_ = declare_parameter("end_effector_link", "tool0");
     duration_ = declare_parameter("duration", 1.0);
     pub_ = create_publisher<cyx_robot_interfaces::msg::CartesianJog>(

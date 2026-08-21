@@ -19,7 +19,7 @@
 已完成：
 
 - 创建 ROS 2 workspace 风格的 `src/` 目录
-- 补齐 6 个功能包的 `package.xml` 和 `CMakeLists.txt`
+- 补齐 8 个功能包的 `package.xml` 和 `CMakeLists.txt`
 - 迁移 sw2urdf 导出的 URDF、CSV、STL、配置、launch 和导出日志
 - 将工作 URDF 的 mesh URI 从 `package://cyx_arm_001/...` 调整为 `package://cyx_robot_description/...`
 - 保留 sw2urdf 原始导出辅助文件，方便后续追溯
@@ -36,6 +36,9 @@
 - 增加空的 `tool0` 规划坐标系，相对 `arm_link6` 沿 +Z 偏移 16 mm
 - 配置 MoveIt 2 的 SRDF、KDL、OMPL、关节运行限制和轨迹控制器映射
 - 实现 Gazebo、ros2_control、MoveIt 2 与 RViz MotionPlanning 联合启动
+- 增加统一的程序化规划 Action、Service、运动状态机和轨迹缓存
+- 实现仅含 `home` 的命名姿态、关节目标、末端位姿和笛卡尔多路点规划
+- 实现 `W/S/A/D/I/K` 控制 `tool0` 每次约 10 mm 的安全笛卡尔微动
 
 尚未完成：
 
@@ -56,6 +59,8 @@ cyx_arm/
     ├── cyx_robot_description/   # URDF/Xacro、mesh、模型显示
     ├── cyx_robot_bringup/       # 系统统一启动入口
     ├── cyx_robot_control/       # ros2_control 控制器配置
+    ├── cyx_robot_interfaces/    # 程序化运动 Action、Service 与消息
+    ├── cyx_robot_planning/      # MoveIt 规划服务器、状态机与键盘微动
     ├── cyx_robot_hardware/      # 达妙电机硬件抽象层
     ├── cyx_robot_moveit/        # MoveIt 2 配置与启动
     └── cyx_robot_simulation/    # Gazebo 仿真、world 与启动文件
@@ -322,6 +327,163 @@ ros2 topic echo /joint_states --once
 
 如果规划失败，应检查目标是否超出工作空间、是否超过关节限制，以及起点或目标是否发生自碰撞。
 
+### 程序化运动控制
+
+`cyx_motion_server` 在 MoveIt 之上提供稳定的项目接口。它维护统一运动状态机，并确保同一时刻只有一个规划、执行或键盘微动任务控制机械臂：
+
+```text
+IDLE → PLANNING → PLANNED → EXECUTING → SUCCEEDED
+                    └───────────────→ FAILED / CANCELED
+```
+
+启动 MoveIt 联合仿真时，程序化规划服务器默认一起启动：
+
+```bash
+ros2 launch cyx_robot_moveit demo.launch.py
+```
+
+也可以控制是否启动：
+
+```bash
+ros2 launch cyx_robot_bringup bringup.launch.py \
+  use_moveit:=true \
+  use_motion_server:=true \
+  use_keyboard_jog:=false
+```
+
+#### Action 接口
+
+| Action | 用途 |
+| --- | --- |
+| `/cyx_arm/move_to_named` | 移动到命名姿态；当前只支持 `home` |
+| `/cyx_arm/move_to_joints` | 六关节目标规划或执行 |
+| `/cyx_arm/move_to_pose` | 指定末端 link 的目标位姿规划或执行 |
+| `/cyx_arm/follow_cartesian` | 末端多路点笛卡尔路径 |
+| `/cyx_arm/execute` | 按 `plan_id` 执行缓存轨迹 |
+
+回到全关节零位：
+
+```bash
+ros2 action send_goal /cyx_arm/move_to_named \
+  cyx_robot_interfaces/action/MoveToNamed \
+  "{name: home, options: {velocity_scaling: 0.2, acceleration_scaling: 0.2}}" \
+  --feedback
+```
+
+只规划六关节目标，不执行：
+
+```bash
+ros2 action send_goal /cyx_arm/move_to_joints \
+  cyx_robot_interfaces/action/MoveToJoints \
+  "{positions: [0.3, -0.2, 0.2, 0.0, 0.1, 0.0], options: {plan_only: true}}" \
+  --feedback
+```
+
+规划并执行 `tool0` 目标位姿：
+
+```bash
+ros2 action send_goal /cyx_arm/move_to_pose \
+  cyx_robot_interfaces/action/MoveToPose \
+  "{target: {header: {frame_id: base_link}, pose: {position: {x: 0.15, y: 0.0, z: 0.35}, orientation: {w: 1.0}}}, options: {end_effector_link: tool0, velocity_scaling: 0.2, acceleration_scaling: 0.2}}" \
+  --feedback
+```
+
+规划末端笛卡尔多路点（示例仅规划，不执行）：
+
+```bash
+ros2 action send_goal /cyx_arm/follow_cartesian \
+  cyx_robot_interfaces/action/FollowCartesianPath \
+  "{waypoints: [{header: {frame_id: base_link}, pose: {position: {x: 0.15, y: 0.00, z: 0.35}, orientation: {w: 1.0}}}, {header: {frame_id: base_link}, pose: {position: {x: 0.15, y: 0.02, z: 0.35}, orientation: {w: 1.0}}}], options: {end_effector_link: tool0, plan_only: true}, eef_step: 0.005, jump_threshold: 0.0, minimum_fraction: 0.98}" \
+  --feedback
+```
+
+只有路径完成比例达到 `minimum_fraction` 时轨迹才会被接受；用于实际执行前，应先结合机械臂当前姿态确认示例位点处于可达空间。
+
+`end_effector_link` 没有硬编码为 `tool0`。请求未指定时采用参数 `default_end_effector_link`；未来加入夹爪、吸盘或相机后，可以传入 `gripper_tcp`、`suction_tcp` 等 URDF link，而无需修改 Action 类型。服务端会拒绝机器人模型中不存在的 link。
+
+#### Service 接口
+
+| Service | 用途 |
+| --- | --- |
+| `/cyx_arm/plan` | 通用 named/joint/pose 纯规划，返回轨迹和 `plan_id` |
+| `/cyx_arm/stop` | 停止当前规划、轨迹执行或键盘微动 |
+| `/cyx_arm/get_state` | 查询状态机、关节、末端位姿和最近错误 |
+
+通用关节目标纯规划：
+
+```bash
+ros2 service call /cyx_arm/plan cyx_robot_interfaces/srv/Plan \
+  "{goal_type: 1, joint_positions: [0.3, -0.2, 0.2, 0.0, 0.1, 0.0]}"
+```
+
+返回的 `plan_id` 可交给 `/cyx_arm/execute`：
+
+```bash
+ros2 action send_goal /cyx_arm/execute \
+  cyx_robot_interfaces/action/ExecutePlan \
+  "{plan_id: plan_1_123456789}" --feedback
+```
+
+缓存轨迹默认保存 300 秒、最多 10 条。执行前会检查机械臂当前状态是否仍接近原规划起点，避免在姿态已改变后执行旧轨迹。
+
+查询与停止：
+
+```bash
+ros2 service call /cyx_arm/get_state cyx_robot_interfaces/srv/GetMotionState "{}"
+ros2 service call /cyx_arm/stop cyx_robot_interfaces/srv/StopMotion "{}"
+```
+
+#### 公共规划选项
+
+所有规划 Action 使用 `MotionOptions`：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `planning_group` | `cyx_arm` | MoveIt 规划组 |
+| `end_effector_link` | `tool0` | 被控制的 TCP link，可替换 |
+| `reference_frame` | `base_link` | 目标参考坐标系 |
+| `planner_id` | `RRTConnectkConfigDefault` | OMPL 规划器 |
+| `planning_time` | 5.0 s | 最大规划时间 |
+| `planning_attempts` | 5 | 规划尝试次数 |
+| `velocity_scaling` | 0.2 | 速度缩放，范围 `(0, 1]` |
+| `acceleration_scaling` | 0.2 | 加速度缩放，范围 `(0, 1]` |
+| `plan_only` | `false` | `true` 时只规划并缓存 |
+
+### 键盘笛卡尔微动
+
+键盘节点应在独立终端中运行，以便读取按键：
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch cyx_robot_planning keyboard_jog.launch.py
+```
+
+默认每次按键让 `tool0` 相对 Gazebo/MoveIt 的模型坐标系 `world` 微动约 10 mm。当前 `base_link` 固定在 `world` 原点且方向一致，因此操作方向与机械臂基座坐标轴一致：
+
+| 按键 | 方向 |
+| --- | --- |
+| `W` / `S` | X 正/负方向 |
+| `A` / `D` | Y 正/负方向 |
+| `I` / `K` | Z 正/负方向 |
+| `Space` | 停止当前微动 |
+| `Q` | 退出键盘节点 |
+
+一次按键的运行逻辑：
+
+```text
+读取当前末端位姿
+  → 叠加 0.010 m 位移
+  → MoveIt 计算笛卡尔路径
+  → 检查 IK、碰撞、关节限制和完成比例
+  → 时间参数化
+  → joint_trajectory_controller 执行
+```
+
+首版采用“一次按键、一次安全规划和执行”，不允许按键命令堆积。其他 Action 正在运行时微动会被拒绝；微动执行期间其他运动请求也会被拒绝。末端 link、参考坐标系和步长可在 `cyx_robot_planning/config/keyboard_jog.yaml` 中修改。
+
+在零位完全伸直等奇异姿态附近，某些方向的 10 mm 笛卡尔移动可能没有完整 IK 路径，服务器会拒绝该次微动，而不会强制执行不完整轨迹。
+
 发送一条五秒轨迹进行测试：
 
 ```bash
@@ -338,8 +500,9 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 4. **控制器（已完成）**：配置 `joint_state_broadcaster` 和 `joint_trajectory_controller`。
 5. **Gazebo 仿真（已完成）**：加载模型、控制器、GazeboSystem 和 RViz。
 6. **MoveIt 2（已完成基础配置）**：配置 SRDF、KDL、OMPL、关节运行限制及控制器映射。
-7. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
-8. **统一启动（仿真已完成）**：当前由 `cyx_robot_bringup` 组合 Gazebo、模型、控制器和 RViz；规划和硬件待后续扩展。
+7. **程序化规划（已完成基础框架）**：提供 Action、Service、状态查询、轨迹缓存和键盘笛卡尔微动。
+8. **统一启动（仿真已完成）**：由 `cyx_robot_bringup` 组合 Gazebo、模型、控制器、MoveIt、规划服务器和 RViz。
+9. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
 
 ## 目标接口
 
@@ -349,6 +512,10 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 - 轨迹消息：`trajectory_msgs/msg/JointTrajectory`
 - 关节状态：`/joint_states`
 - 坐标变换：`/tf`
+- 程序化规划：`/cyx_arm/move_to_named`、`/cyx_arm/move_to_joints`、`/cyx_arm/move_to_pose`、`/cyx_arm/follow_cartesian`
+- 缓存轨迹执行：`/cyx_arm/execute`
+- 状态与控制服务：`/cyx_arm/plan`、`/cyx_arm/stop`、`/cyx_arm/get_state`
+- 笛卡尔微动输入：`/cyx_arm/cartesian_jog`
 
 当前可用的启动命令：
 
@@ -383,4 +550,4 @@ ros2 launch cyx_robot_moveit demo.launch.py
 
 ## 说明
 
-当前工作空间已在 Ubuntu 22.04 + ROS 2 Humble 环境完成 Xacro/URDF 解析、关节限制一致性检查、Python launch 语法检查和全包 `colcon build`，并验证 mock hardware 和两个控制器能够完成加载与激活。Gazebo 与 RViz 联合仿真及 STL 模型显示已由项目使用者检查确认。
+当前工作空间已在 Ubuntu 22.04 + ROS 2 Humble 环境完成 Xacro/URDF 解析、关节限制一致性检查、Python launch 语法检查和全包 `colcon build`。已验证 Gazebo 模型与控制器加载、MoveIt 关节规划及执行、缓存轨迹执行、运动状态查询，以及非奇异姿态下 `tool0` 的 10 mm 笛卡尔微动。

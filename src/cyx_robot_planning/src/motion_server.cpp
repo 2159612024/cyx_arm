@@ -128,7 +128,13 @@ private:
     return true;
   }
 
-  void release() {busy_ = false; active_id_.clear();}
+  void release()
+  {
+    busy_ = false;
+    active_id_.clear();
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    status_.active_request_id.clear();
+  }
 
   std::string next_id()
   {

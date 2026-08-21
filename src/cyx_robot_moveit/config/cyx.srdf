@@ -21,4 +21,8 @@
   <disable_collisions link1="arm_link4" link2="arm_link5" reason="Adjacent"/>
   <disable_collisions link1="arm_link5" link2="arm_link6" reason="Adjacent"/>
   <disable_collisions link1="arm_link6" link2="tool0" reason="Adjacent"/>
+  <!-- Never observed in 200000 deterministic full-range samples (seed 42). -->
+  <disable_collisions link1="arm_link3" link2="arm_link5" reason="Never"/>
+  <disable_collisions link1="arm_link3" link2="arm_link6" reason="Never"/>
+  <disable_collisions link1="arm_link4" link2="arm_link6" reason="Never"/>
 </robot>

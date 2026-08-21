@@ -1,0 +1,8 @@
+---
+cyx_robot_interfaces/MotionStatus status
+sensor_msgs/JointState joint_state
+string active_end_effector_link
+geometry_msgs/PoseStamped end_effector_pose
+bool controller_ready
+bool moveit_ready
+string last_error

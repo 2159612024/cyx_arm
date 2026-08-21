@@ -1,0 +1,9 @@
+string planning_group
+string end_effector_link
+string reference_frame
+string planner_id
+float64 planning_time
+int32 planning_attempts
+float64 velocity_scaling
+float64 acceleration_scaling
+bool plan_only

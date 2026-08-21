@@ -1,0 +1,7 @@
+string plan_id
+---
+bool success
+int32 error_code
+string message
+---
+cyx_robot_interfaces/MotionStatus status

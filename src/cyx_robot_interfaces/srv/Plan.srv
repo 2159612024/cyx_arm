@@ -1,0 +1,16 @@
+uint8 JOINT_GOAL=1
+uint8 POSE_GOAL=2
+uint8 NAMED_GOAL=3
+
+uint8 goal_type
+string named_target
+string[] joint_names
+float64[] joint_positions
+geometry_msgs/PoseStamped pose_target
+cyx_robot_interfaces/MotionOptions options
+---
+bool success
+string plan_id
+trajectory_msgs/JointTrajectory trajectory
+int32 error_code
+string message

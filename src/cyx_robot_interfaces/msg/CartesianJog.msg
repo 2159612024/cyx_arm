@@ -1,0 +1,5 @@
+std_msgs/Header header
+string end_effector_link
+string reference_frame
+geometry_msgs/Vector3 translation
+float64 duration

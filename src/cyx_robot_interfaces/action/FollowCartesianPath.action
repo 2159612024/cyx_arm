@@ -1,0 +1,14 @@
+geometry_msgs/PoseStamped[] waypoints
+cyx_robot_interfaces/MotionOptions options
+float64 eef_step
+float64 jump_threshold
+float64 minimum_fraction
+---
+bool success
+string plan_id
+float64 fraction
+int32 error_code
+string message
+---
+cyx_robot_interfaces/MotionStatus status
+float64 fraction

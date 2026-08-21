@@ -12,6 +12,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MotionOptions.msg"
   "msg/MotionStatus.msg"
   "msg/CartesianJog.msg"
+  "msg/JointJog.msg"
   "action/MoveToNamed.action"
   "action/MoveToJoints.action"
   "action/MoveToPose.action"

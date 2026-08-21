@@ -10,6 +10,7 @@
 #include <stdexcept>
 
 #include "cyx_robot_interfaces/msg/cartesian_jog.hpp"
+#include "cyx_robot_interfaces/msg/joint_jog.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 class TerminalGuard
@@ -69,15 +70,18 @@ public:
     frame_ = declare_parameter("reference_frame", "world");
     eef_ = declare_parameter("end_effector_link", "tool0");
     duration_ = declare_parameter("duration", 1.0);
-    pub_ = create_publisher<cyx_robot_interfaces::msg::CartesianJog>(
+    joint_step_ = declare_parameter("joint_step", 10.0);
+    cartesian_pub_ = create_publisher<cyx_robot_interfaces::msg::CartesianJog>(
       "/cyx_arm/cartesian_jog", 10);
+    joint_pub_ = create_publisher<cyx_robot_interfaces::msg::JointJog>(
+      "/cyx_arm/joint_jog", 10);
   }
 
   void run()
   {
     TerminalGuard guard;
-    std::cout << "CYX Cartesian jog: W/S=+/-X, A/D=+/-Y, I/K=+/-Z, Space=stop, Q=quit\n";
-    std::cout << "step=" << step_ * 1000.0 << " mm frame=" << frame_ << " eef=" << eef_ << '\n';
+    std::cout << "CYX keyboard jog: T=switch mode, Space=stop, Q=quit\n";
+    print_mode();
     while (rclcpp::ok()) {
       char key{};
       const auto bytes_read = ::read(guard.fd(), &key, 1);
@@ -90,6 +94,15 @@ public:
       key = static_cast<char>(std::tolower(static_cast<unsigned char>(key)));
       if (key == 'q') {
         break;
+      }
+      if (key == 't') {
+        joint_mode_ = !joint_mode_;
+        print_mode();
+        continue;
+      }
+      if (joint_mode_) {
+        handle_joint_key(key);
+        continue;
       }
       cyx_robot_interfaces::msg::CartesianJog msg;
       msg.header.stamp = now();
@@ -104,10 +117,10 @@ public:
       else if (key == 'i') msg.translation.z = step_;
       else if (key == 'k') msg.translation.z = -step_;
       else if (key != ' ') continue;
-      if (pub_->get_subscription_count() == 0) {
+      if (cartesian_pub_->get_subscription_count() == 0) {
         RCLCPP_WARN(get_logger(), "No subscriber on /cyx_arm/cartesian_jog; is demo.launch.py running?");
       }
-      pub_->publish(msg);
+      cartesian_pub_->publish(msg);
       RCLCPP_INFO(
         get_logger(), "Published key '%c': dx=%.3f dy=%.3f dz=%.3f m",
         key == ' ' ? '_' : key, msg.translation.x, msg.translation.y, msg.translation.z);
@@ -115,11 +128,54 @@ public:
   }
 
 private:
+  void print_mode() const
+  {
+    if (joint_mode_) {
+      std::cout << "[JOINT] A/D=select joint, W/S=+/-angle, selected=arm_joint" <<
+        selected_joint_ + 1 << ", step=" << joint_step_ << " rad\n";
+    } else {
+      std::cout << "[CARTESIAN] W/S=+/-X, A/D=+/-Y, I/K=+/-Z, step=" <<
+        step_ * 1000.0 << " mm, frame=" << frame_ << ", eef=" << eef_ << '\n';
+    }
+  }
+
+  void handle_joint_key(char key)
+  {
+    if (key == 'a' || key == 'd') {
+      selected_joint_ = (selected_joint_ + (key == 'd' ? 1 : 5)) % 6;
+      print_mode();
+      return;
+    }
+    if (key == ' ') {
+      cyx_robot_interfaces::msg::CartesianJog stop;
+      cartesian_pub_->publish(stop);
+      RCLCPP_INFO(get_logger(), "Published stop request");
+      return;
+    }
+    if (key != 'w' && key != 's') {
+      return;
+    }
+    cyx_robot_interfaces::msg::JointJog msg;
+    msg.joint_index = selected_joint_;
+    msg.delta = key == 'w' ? joint_step_ : -joint_step_;
+    if (joint_pub_->get_subscription_count() == 0) {
+      RCLCPP_WARN(get_logger(), "No subscriber on /cyx_arm/joint_jog; is demo.launch.py running?");
+    }
+    joint_pub_->publish(msg);
+    RCLCPP_INFO(
+      get_logger(), "Published arm_joint%d jog: delta=%+.6f rad",
+      selected_joint_ + 1, msg.delta);
+  }
+
   double step_{0.01};
+  double joint_step_{10.0};
   double duration_{1.0};
+  bool joint_mode_{false};
+  int selected_joint_{0};
   std::string frame_;
   std::string eef_;
-  rclcpp::Publisher<cyx_robot_interfaces::msg::CartesianJog>::SharedPtr pub_;
+  rclcpp::Publisher<cyx_robot_interfaces::msg::CartesianJog>::SharedPtr cartesian_pub_;
+  rclcpp::Publisher<cyx_robot_interfaces::msg::JointJog>::SharedPtr joint_pub_;
 };
 
 int main(int argc, char ** argv)

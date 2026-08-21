@@ -477,7 +477,7 @@ ros2 service call /cyx_arm/stop cyx_robot_interfaces/srv/StopMotion "{}"
 | `acceleration_scaling` | 0.2 | 加速度缩放，范围 `(0, 1]` |
 | `plan_only` | `false` | `true` 时只规划并缓存 |
 
-### 键盘笛卡尔微动
+### 键盘笛卡尔与关节微动
 
 键盘节点应在独立终端中运行，以便读取按键：
 
@@ -487,7 +487,7 @@ source install/setup.bash
 ros2 launch cyx_robot_planning keyboard_jog.launch.py
 ```
 
-该节点会直接读取当前控制终端 `/dev/tty`，因此可通过 `ros2 launch` 交互使用。有效按键被读取后，终端会打印 `Published key ...`；如果出现 `No subscriber on /cyx_arm/cartesian_jog`，应先确认 `demo.launch.py` 中的 `cyx_motion_server` 已正常启动。若只看到输入字符回显而没有发布日志，请确认运行节点的是交互式终端，而不是无 TTY 的后台任务或重定向脚本。
+该节点会直接读取当前控制终端 `/dev/tty`，因此可通过 `ros2 launch` 交互使用。按 `T` 在笛卡尔和关节模式之间切换，启动时默认为笛卡尔模式。有效按键被读取后终端会打印发布记录；如果出现 `No subscriber`，应先确认 `demo.launch.py` 中的 `cyx_motion_server` 已正常启动。若只看到输入字符回显而没有发布日志，请确认运行节点的是交互式终端，而不是无 TTY 的后台任务或重定向脚本。
 
 默认每次按键让 `tool0` 相对 Gazebo/MoveIt 的模型坐标系 `world` 微动约 10 mm。当前 `base_link` 固定在 `world` 原点且方向一致，因此操作方向与机械臂基座坐标轴一致：
 
@@ -496,8 +496,28 @@ ros2 launch cyx_robot_planning keyboard_jog.launch.py
 | `W` / `S` | X 正/负方向 |
 | `A` / `D` | Y 正/负方向 |
 | `I` / `K` | Z 正/负方向 |
+| `T` | 切换到关节模式 |
 | `Space` | 停止当前微动 |
 | `Q` | 退出键盘节点 |
+
+关节模式从 `arm_joint1` 开始选择：
+
+| 按键 | 功能 |
+| --- | --- |
+| `A` / `D` | 循环选择上一个/下一个关节 |
+| `W` / `S` | 当前关节角度增大/减小 |
+| `T` | 切换回笛卡尔模式 |
+| `Space` | 停止当前运动 |
+| `Q` | 退出键盘节点 |
+
+关节命令发布到 `/cyx_arm/joint_jog`。运动服务器读取当前六关节角，在选中关节上叠加 `joint_step`，然后使用 MoveIt 进行限位、自碰撞检查、规划和轨迹执行，不会绕过安全检查直接操作控制器。
+
+当前按要求将 `joint_step` 默认设置为 `10.0 rad`。该数值超过一圈半，通常会超出本机械臂的关节范围，因此服务端会返回 `joint jog target violates joint bounds` 并拒绝运动。若目标是每次移动 10°，请修改：
+
+```yaml
+# cyx_robot_planning/config/keyboard_jog.yaml
+joint_step: 0.1745329252
+```
 
 一次按键的运行逻辑：
 
@@ -510,7 +530,7 @@ ros2 launch cyx_robot_planning keyboard_jog.launch.py
   → joint_trajectory_controller 执行
 ```
 
-首版采用“一次按键、一次安全规划和执行”，不允许按键命令堆积。其他 Action 正在运行时微动会被拒绝；微动执行期间其他运动请求也会被拒绝。末端 link、参考坐标系和步长可在 `cyx_robot_planning/config/keyboard_jog.yaml` 中修改。
+两种模式均采用“一次按键、一次安全规划和执行”，不允许按键命令堆积。其他 Action 正在运行时微动会被拒绝；微动执行期间其他运动请求也会被拒绝。末端 link、参考坐标系、笛卡尔步长和关节角步长可在 `cyx_robot_planning/config/keyboard_jog.yaml` 中修改。
 
 在零位完全伸直等奇异姿态附近，某些方向的 10 mm 笛卡尔移动可能没有完整 IK 路径，服务器会拒绝该次微动，而不会强制执行不完整轨迹。
 
@@ -582,6 +602,7 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 - 缓存轨迹执行：`/cyx_arm/execute`
 - 状态与控制服务：`/cyx_arm/plan`、`/cyx_arm/stop`、`/cyx_arm/get_state`
 - 笛卡尔微动输入：`/cyx_arm/cartesian_jog`
+- 关节微动输入：`/cyx_arm/joint_jog`
 - 可达空间 Marker：`/cyx_arm/reachable_workspace`
 
 当前可用的启动命令：

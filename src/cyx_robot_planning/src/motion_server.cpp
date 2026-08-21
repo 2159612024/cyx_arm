@@ -17,6 +17,7 @@
 #include "cyx_robot_interfaces/action/move_to_named.hpp"
 #include "cyx_robot_interfaces/action/move_to_pose.hpp"
 #include "cyx_robot_interfaces/msg/cartesian_jog.hpp"
+#include "cyx_robot_interfaces/msg/joint_jog.hpp"
 #include "cyx_robot_interfaces/msg/motion_options.hpp"
 #include "cyx_robot_interfaces/msg/motion_status.hpp"
 #include "cyx_robot_interfaces/srv/get_motion_state.hpp"
@@ -107,6 +108,8 @@ public:
       "/cyx_arm/get_state", std::bind(&MotionServer::state_service, this, _1, _2));
     jog_sub_ = create_subscription<cyx_robot_interfaces::msg::CartesianJog>(
       "/cyx_arm/cartesian_jog", 10, std::bind(&MotionServer::jog_callback, this, _1));
+    joint_jog_sub_ = create_subscription<cyx_robot_interfaces::msg::JointJog>(
+      "/cyx_arm/joint_jog", 10, std::bind(&MotionServer::joint_jog_callback, this, _1));
     RCLCPP_INFO(get_logger(), "CYX motion server ready (group=%s, eef=%s)", group_.c_str(), default_eef_.c_str());
   }
 
@@ -149,6 +152,7 @@ private:
     status_.message = message;
     status_.progress = progress;
     if (state == Status::FAILED) last_error_ = message;
+    else if (state == Status::SUCCEEDED) last_error_.clear();
   }
 
   Status status_copy()
@@ -496,6 +500,47 @@ private:
     }).detach();
   }
 
+  void joint_jog_callback(const cyx_robot_interfaces::msg::JointJog::SharedPtr msg)
+  {
+    if (!std::isfinite(msg->delta) || msg->delta == 0.0) {
+      RCLCPP_WARN(get_logger(), "Joint jog ignored: delta must be finite and non-zero");
+      return;
+    }
+    if (!reserve(next_id())) {
+      RCLCPP_WARN(get_logger(), "Joint jog ignored: motion server busy");
+      return;
+    }
+    std::thread([this, msg] {
+      std::string error;
+      Options options;
+      options.velocity_scaling = 0.1;
+      options.acceleration_scaling = 0.1;
+      set_status(Status::PLANNING, "planning joint jog", 0.1);
+      if (!configure(options, error)) {
+        set_status(Status::FAILED, error, 0.0); release(); return;
+      }
+      auto positions = move_group_->getCurrentJointValues();
+      if (msg->joint_index < 0 || static_cast<std::size_t>(msg->joint_index) >= positions.size()) {
+        set_status(Status::FAILED, "joint jog index out of range", 0.0); release(); return;
+      }
+      positions[static_cast<std::size_t>(msg->joint_index)] += msg->delta;
+      if (!move_group_->setJointValueTarget(positions)) {
+        set_status(Status::FAILED, "joint jog target violates joint bounds", 0.0); release(); return;
+      }
+      moveit::planning_interface::MoveGroupInterface::Plan plan;
+      if (!plan_current(plan, error)) {
+        set_status(Status::FAILED, error, 0.0); release(); return;
+      }
+      set_status(Status::EXECUTING, "executing joint jog", 0.7);
+      if (!execute(plan, error)) {
+        set_status(cancel_requested_ ? Status::CANCELED : Status::FAILED, error, 0.0);
+        release(); return;
+      }
+      set_status(Status::SUCCEEDED, "joint jog complete", 1.0);
+      release();
+    }).detach();
+  }
+
   std::string group_,default_eef_,default_frame_,default_planner_,active_id_,last_error_;
   double planning_time_,velocity_scaling_,acceleration_scaling_,start_tolerance_,cartesian_step_,cartesian_fraction_,jog_step_,jog_eef_step_,jog_fraction_,cache_timeout_;
   int planning_attempts_,cache_size_;
@@ -512,6 +557,7 @@ private:
   rclcpp::Service<cyx_robot_interfaces::srv::StopMotion>::SharedPtr stop_service_;
   rclcpp::Service<cyx_robot_interfaces::srv::GetMotionState>::SharedPtr state_service_;
   rclcpp::Subscription<cyx_robot_interfaces::msg::CartesianJog>::SharedPtr jog_sub_;
+  rclcpp::Subscription<cyx_robot_interfaces::msg::JointJog>::SharedPtr joint_jog_sub_;
 };
 
 int main(int argc,char **argv)

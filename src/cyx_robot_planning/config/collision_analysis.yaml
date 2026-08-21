@@ -1,0 +1,11 @@
+cyx_self_collision_analyzer:
+  ros__parameters:
+    planning_group: cyx_arm
+    sample_count: 10000
+    random_seed: 42
+    use_allowed_collision_matrix: true
+    near_joint_limit_ratio: 0.05
+    calculate_distance: true
+    strict: false
+    max_collision_ratio: 1.0
+    output_file: ""

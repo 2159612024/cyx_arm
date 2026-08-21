@@ -1,9 +1,13 @@
+#include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 
 #include "cyx_robot_interfaces/msg/cartesian_jog.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -13,14 +17,46 @@ class TerminalGuard
 public:
   TerminalGuard()
   {
-    tcgetattr(STDIN_FILENO, &original_);
+    // ros2 launch does not forward its stdin to child processes. Open the
+    // controlling terminal explicitly so this node remains interactive when
+    // it is started from a launch file.
+    fd_ = ::open("/dev/tty", O_RDONLY | O_CLOEXEC);
+    if (fd_ < 0) {
+      throw std::runtime_error(
+              std::string("failed to open /dev/tty: ") + std::strerror(errno));
+    }
+    if (::tcgetattr(fd_, &original_) != 0) {
+      const auto error = std::string("failed to read terminal settings: ") +
+        std::strerror(errno);
+      ::close(fd_);
+      fd_ = -1;
+      throw std::runtime_error(error);
+    }
     auto raw = original_;
     raw.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    if (::tcsetattr(fd_, TCSANOW, &raw) != 0) {
+      const auto error = std::string("failed to enable raw terminal mode: ") +
+        std::strerror(errno);
+      ::close(fd_);
+      fd_ = -1;
+      throw std::runtime_error(error);
+    }
   }
-  ~TerminalGuard() {tcsetattr(STDIN_FILENO, TCSANOW, &original_);}
+  ~TerminalGuard()
+  {
+    if (fd_ >= 0) {
+      ::tcsetattr(fd_, TCSANOW, &original_);
+      ::close(fd_);
+    }
+  }
+
+  TerminalGuard(const TerminalGuard &) = delete;
+  TerminalGuard & operator=(const TerminalGuard &) = delete;
+
+  int fd() const {return fd_;}
 
 private:
+  int fd_{-1};
   termios original_{};
 };
 
@@ -44,7 +80,11 @@ public:
     std::cout << "step=" << step_ * 1000.0 << " mm frame=" << frame_ << " eef=" << eef_ << '\n';
     while (rclcpp::ok()) {
       char key{};
-      if (::read(STDIN_FILENO, &key, 1) != 1) {
+      const auto bytes_read = ::read(guard.fd(), &key, 1);
+      if (bytes_read < 0 && errno == EINTR) {
+        continue;
+      }
+      if (bytes_read != 1) {
         continue;
       }
       key = static_cast<char>(std::tolower(static_cast<unsigned char>(key)));
@@ -64,7 +104,13 @@ public:
       else if (key == 'i') msg.translation.z = step_;
       else if (key == 'k') msg.translation.z = -step_;
       else if (key != ' ') continue;
+      if (pub_->get_subscription_count() == 0) {
+        RCLCPP_WARN(get_logger(), "No subscriber on /cyx_arm/cartesian_jog; is demo.launch.py running?");
+      }
       pub_->publish(msg);
+      RCLCPP_INFO(
+        get_logger(), "Published key '%c': dx=%.3f dy=%.3f dz=%.3f m",
+        key == ' ' ? '_' : key, msg.translation.x, msg.translation.y, msg.translation.z);
     }
   }
 
@@ -80,7 +126,13 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<KeyboardJog>();
-  node->run();
+  try {
+    node->run();
+  } catch (const std::exception & error) {
+    RCLCPP_FATAL(node->get_logger(), "Keyboard input unavailable: %s", error.what());
+    rclcpp::shutdown();
+    return 1;
+  }
   rclcpp::shutdown();
   return 0;
 }

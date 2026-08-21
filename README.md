@@ -459,6 +459,8 @@ source install/setup.bash
 ros2 launch cyx_robot_planning keyboard_jog.launch.py
 ```
 
+该节点会直接读取当前控制终端 `/dev/tty`，因此可通过 `ros2 launch` 交互使用。有效按键被读取后，终端会打印 `Published key ...`；如果出现 `No subscriber on /cyx_arm/cartesian_jog`，应先确认 `demo.launch.py` 中的 `cyx_motion_server` 已正常启动。若只看到输入字符回显而没有发布日志，请确认运行节点的是交互式终端，而不是无 TTY 的后台任务或重定向脚本。
+
 默认每次按键让 `tool0` 相对 Gazebo/MoveIt 的模型坐标系 `world` 微动约 10 mm。当前 `base_link` 固定在 `world` 原点且方向一致，因此操作方向与机械臂基座坐标轴一致：
 
 | 按键 | 方向 |

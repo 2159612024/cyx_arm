@@ -135,8 +135,20 @@ private:
   {
     busy_ = false;
     active_id_.clear();
-    std::lock_guard<std::mutex> lock(status_mutex_);
-    status_.active_request_id.clear();
+    {
+      std::lock_guard<std::mutex> lock(status_mutex_);
+      status_.active_request_id.clear();
+    }
+    cyx_robot_interfaces::msg::JointJog::SharedPtr pending;
+    {
+      std::lock_guard<std::mutex> lock(pending_jog_mutex_);
+      pending = pending_joint_jog_;
+      pending_joint_jog_.reset();
+    }
+    if (pending) {
+      RCLCPP_INFO(get_logger(), "Starting latest queued joint jog");
+      joint_jog_callback(pending);
+    }
   }
 
   std::string next_id()
@@ -348,8 +360,8 @@ private:
     if (cancel_requested_ || h->is_canceling()) h->canceled(result);
     else if (success) h->succeed(result);
     else h->abort(result);
-    release();
     set_status(success ? Status::SUCCEEDED : (cancel_requested_ ? Status::CANCELED : Status::FAILED), message, success ? 1.0 : 0.0);
+    release();
   }
 
   void run_named(const std::shared_ptr<rclcpp_action::ServerGoalHandle<MoveToNamed>> h)
@@ -451,14 +463,18 @@ private:
       res->success=true; res->plan_id=cache_plan(plan,o.end_effector_link);
       res->trajectory=plan.trajectory_.joint_trajectory; res->error_code=moveit_msgs::msg::MoveItErrorCodes::SUCCESS; res->message="plan created";
     } else {res->error_code=moveit_msgs::msg::MoveItErrorCodes::FAILURE; res->message=error;}
-    move_group_->clearPoseTargets(); release();
     set_status(res->success ? Status::PLANNED : Status::FAILED,
       res->success ? "plan created" : error, res->success ? 1.0 : 0.0);
+    move_group_->clearPoseTargets(); release();
   }
 
   void stop_service(const std::shared_ptr<cyx_robot_interfaces::srv::StopMotion::Request>,
     std::shared_ptr<cyx_robot_interfaces::srv::StopMotion::Response> res)
   {
+    {
+      std::lock_guard<std::mutex> lock(pending_jog_mutex_);
+      pending_joint_jog_.reset();
+    }
     cancel_requested_=true; move_group_->stop(); set_status(Status::CANCELED,"motion stopped",0.0);
     res->success=true; res->message="stop requested";
   }
@@ -478,7 +494,13 @@ private:
 
   void jog_callback(const cyx_robot_interfaces::msg::CartesianJog::SharedPtr msg)
   {
-    if (msg->translation.x==0.0 && msg->translation.y==0.0 && msg->translation.z==0.0) {cancel_requested_=true; move_group_->stop(); return;}
+    if (msg->translation.x==0.0 && msg->translation.y==0.0 && msg->translation.z==0.0) {
+      {
+        std::lock_guard<std::mutex> lock(pending_jog_mutex_);
+        pending_joint_jog_.reset();
+      }
+      cancel_requested_=true; move_group_->stop(); return;
+    }
     if (!reserve(next_id())) {RCLCPP_WARN(get_logger(),"Jog ignored: motion server busy"); return;}
     std::thread([this,msg]{
       std::string error; Options o; o.end_effector_link=msg->end_effector_link; o.reference_frame=msg->reference_frame;
@@ -511,7 +533,11 @@ private:
       return;
     }
     if (!reserve(next_id())) {
-      RCLCPP_WARN(get_logger(), "Joint jog ignored: motion server busy");
+      {
+        std::lock_guard<std::mutex> lock(pending_jog_mutex_);
+        pending_joint_jog_ = msg;
+      }
+      RCLCPP_INFO(get_logger(), "Motion server busy; latest joint jog queued");
       return;
     }
     std::thread([this, msg] {
@@ -549,7 +575,8 @@ private:
   double planning_time_,velocity_scaling_,acceleration_scaling_,start_tolerance_,cartesian_step_,cartesian_fraction_,jog_step_,jog_eef_step_,jog_fraction_,cache_timeout_;
   int planning_attempts_,cache_size_;
   std::atomic<bool> busy_{false},cancel_requested_{false}; std::atomic<uint64_t> sequence_{0};
-  std::mutex status_mutex_,cache_mutex_; Status status_;
+  std::mutex status_mutex_,cache_mutex_,pending_jog_mutex_; Status status_;
+  cyx_robot_interfaces::msg::JointJog::SharedPtr pending_joint_jog_;
   std::deque<CachedPlan> cache_; std::deque<std::string> cache_ids_;
   std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
   rclcpp_action::Server<MoveToNamed>::SharedPtr named_server_;

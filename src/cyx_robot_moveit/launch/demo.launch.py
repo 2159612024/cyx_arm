@@ -1,14 +1,17 @@
 from moveit_configs_utils import MoveItConfigsBuilder
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    use_motion_server = LaunchConfiguration('use_motion_server')
+    use_keyboard_jog = LaunchConfiguration('use_keyboard_jog')
     moveit_config = (
         MoveItConfigsBuilder('cyx_arm', package_name='cyx_robot_moveit')
         .robot_description()
@@ -65,8 +68,33 @@ def generate_launch_description():
         ],
     )
 
+    planning_server = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('cyx_robot_planning'),
+                'launch',
+                'planning.launch.py',
+            ])
+        ),
+        condition=IfCondition(use_motion_server),
+    )
+    keyboard_jog = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('cyx_robot_planning'),
+                'launch',
+                'keyboard_jog.launch.py',
+            ])
+        ),
+        condition=IfCondition(use_keyboard_jog),
+    )
+
     return LaunchDescription([
+        DeclareLaunchArgument('use_motion_server', default_value='true'),
+        DeclareLaunchArgument('use_keyboard_jog', default_value='false'),
         simulation,
         move_group,
         rviz,
+        planning_server,
+        keyboard_jog,
     ])

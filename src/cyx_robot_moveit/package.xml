@@ -9,6 +9,7 @@
 
   <exec_depend>cyx_robot_control</exec_depend>
   <exec_depend>cyx_robot_description</exec_depend>
+  <exec_depend>cyx_robot_planning</exec_depend>
   <exec_depend>cyx_robot_simulation</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_kinematics</exec_depend>

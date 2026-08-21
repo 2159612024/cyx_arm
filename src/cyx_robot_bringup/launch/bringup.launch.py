@@ -8,6 +8,8 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     use_moveit = LaunchConfiguration('use_moveit')
+    use_motion_server = LaunchConfiguration('use_motion_server')
+    use_keyboard_jog = LaunchConfiguration('use_keyboard_jog')
     simulation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -23,12 +25,18 @@ def generate_launch_description():
                 FindPackageShare('cyx_robot_moveit'), 'launch', 'demo.launch.py'
             ])
         ),
+        launch_arguments={
+            'use_motion_server': use_motion_server,
+            'use_keyboard_jog': use_keyboard_jog,
+        }.items(),
         condition=IfCondition(use_moveit),
     )
 
     return LaunchDescription([
         DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument('use_moveit', default_value='false'),
+        DeclareLaunchArgument('use_motion_server', default_value='true'),
+        DeclareLaunchArgument('use_keyboard_jog', default_value='false'),
         simulation_launch,
         moveit_launch,
     ])

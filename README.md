@@ -39,10 +39,15 @@
 - 增加统一的程序化规划 Action、Service、运动状态机和轨迹缓存
 - 实现仅含 `home` 的命名姿态、关节目标、末端位姿和笛卡尔多路点规划
 - 实现 `W/S/A/D/I/K` 控制 `tool0` 每次约 10 mm 的安全笛卡尔微动
+- 增加基础仿真、MoveIt、键盘控制、调试和可达空间分析的一键启动入口
+- 使用 11 个基本几何体替代约 45.7 万个 STL 三角面进行运行时碰撞检测
+- 完成固定种子的 SRDF 自碰撞矩阵采样，并保留所有观测到碰撞的非相邻 link 对
+- 增加随机姿态自碰撞统计、CSV 报告和严格阈值检查工具
+- 增加 `tool0` 可达空间、关节限位和可操作度的 RViz 可视化及 CSV 导出
 
 尚未完成：
 
-- MoveIt 自碰撞矩阵的完整采样优化及真实场景障碍物配置
+- 真实工作台、工件及环境障碍物的 PlanningScene 配置
 - 达妙电机 `hardware_interface` 实现
 - 真机通信、标定与安全测试
 
@@ -74,12 +79,15 @@ cyx_arm/
 | sw2urdf CSV | `src/cyx_robot_description/urdf/cyx_arm_001.csv` |
 | 7 个 STL mesh | `src/cyx_robot_description/meshes/` |
 | 当前工作 Xacro | `src/cyx_robot_description/urdf/cyx_robot.urdf.xacro` |
+| 简化碰撞几何 | `src/cyx_robot_description/urdf/collision_geometry.xacro` |
 | 机械限制参数源 | `src/cyx_robot_description/urdf/joint_limits.xacro` |
 | 空 TCP 坐标系 | `src/cyx_robot_description/urdf/tool0.xacro` |
 | 关节额定/峰值参数 | `src/cyx_robot_control/config/joint_parameters.yaml` |
 | sw2urdf 原始辅助文件 | `src/cyx_robot_description/sw2urdf_export/` |
 
 `sw2urdf_export/` 中的 package、CMake 和 launch 文件由 ROS 1 风格的导出器生成，仅作为原始资料保留，不应直接用于 ROS 2 构建。
+
+运行时 Xacro 的 visual 仍使用原始 SolidWorks STL，collision 则使用 7 个圆柱体和 4 个盒体组成的简化包络。其尺寸来自 STL 在各 link 坐标系中的包围范围，用于提高 FCL/MoveIt 碰撞检测效率；这些几何是工程近似值，机械结构修改后应在 RViz 中打开 `Collision Enabled` 重新检查包络。
 
 ### 关节限制
 
@@ -149,6 +157,25 @@ source install/setup.bash
 
 ## 使用方法
 
+### 一键启动入口
+
+`cyx_robot_bringup` 提供以下入口，内部复用仿真和 MoveIt launch，不会重复创建机器人或控制器：
+
+| 命令 | 用途 |
+| --- | --- |
+| `ros2 launch cyx_robot_bringup simulation.launch.py` | Gazebo、ros2_control 和可选 RViz |
+| `ros2 launch cyx_robot_bringup moveit_sim.launch.py` | 完整 MoveIt 联合仿真和运动服务器 |
+| `ros2 launch cyx_robot_bringup keyboard_control.launch.py` | 完整联合仿真并在当前终端读取键盘微动 |
+| `ros2 launch cyx_robot_bringup workspace_analysis.launch.py` | 采样并显示可达空间 |
+| `ros2 launch cyx_robot_bringup debug.launch.py` | 默认关闭 Gazebo GUI 的完整调试栈 |
+
+常用参数为 `use_rviz`、`use_gazebo_gui` 和 `world`；MoveIt 入口另支持 `use_motion_server`。例如无 GUI 启动：
+
+```bash
+ros2 launch cyx_robot_bringup moveit_sim.launch.py \
+  use_rviz:=false use_gazebo_gui:=false
+```
+
 ### RViz 模型显示
 
 ```bash
@@ -182,7 +209,8 @@ ros2 launch cyx_robot_bringup bringup.launch.py
 无图形界面运行 Gazebo：
 
 ```bash
-ros2 launch cyx_robot_simulation gazebo.launch.py gui:=false use_rviz:=false
+ros2 launch cyx_robot_simulation gazebo.launch.py \
+  use_gazebo_gui:=false use_rviz:=false
 ```
 
 启动后可确认控制器状态：
@@ -486,6 +514,41 @@ ros2 launch cyx_robot_planning keyboard_jog.launch.py
 
 在零位完全伸直等奇异姿态附近，某些方向的 10 mm 笛卡尔移动可能没有完整 IK 路径，服务器会拒绝该次微动，而不会强制执行不完整轨迹。
 
+### 自碰撞分析
+
+使用固定随机种子在完整关节范围内统计自碰撞：
+
+```bash
+ros2 launch cyx_robot_moveit collision_analysis.launch.py \
+  sample_count:=10000 random_seed:=42 use_acm:=true \
+  output_file:=/tmp/cyx_collision_report.csv
+```
+
+`use_acm:=true` 用于验证实际 SRDF；设为 `false` 会忽略所有允许碰撞项，可用于重新生成候选矩阵。工具输出总碰撞比例、接近关节限位的样本比例和各 link 对频率。当前三个 `reason="Never"` 的 link 对来自 seed 42 的 20 万样本，不能替代机械结构变更后的重新采样和人工检查。
+
+参数 `calculate_distance` 默认开启；若当前碰撞检测后端不提供有限距离，汇总中的 `minimum_distance` 为 `-1`。自动回归可启用 `strict:=true` 并设置 `max_collision_ratio`，超过阈值时进程返回失败。
+
+### 可达空间可视化
+
+一键启动 Gazebo、MoveIt、专用 RViz 和采样节点：
+
+```bash
+ros2 launch cyx_robot_bringup workspace_analysis.launch.py \
+  sample_count:=50000 random_seed:=42 end_effector_link:=tool0
+```
+
+Marker 发布在 `/cyx_arm/reachable_workspace`，采用可靠、`TRANSIENT_LOCAL` QoS。默认过滤自碰撞姿态；黄色表示任一关节接近上下限，其他点由红到绿表示从低到高的雅可比可操作度。若设置 `include_colliding_samples:=true`，自碰撞样本显示为红色。
+
+导出结果：
+
+```bash
+ros2 launch cyx_robot_bringup workspace_analysis.launch.py \
+  use_rviz:=false use_gazebo_gui:=false sample_count:=50000 \
+  output_csv:=/tmp/cyx_workspace.csv
+```
+
+CSV 包含六个关节角、TCP 的 X/Y/Z、自碰撞标志、近限位标志和可操作度。`end_effector_link` 可换成未来夹爪或吸盘的 TCP link，无需修改源码。该图表示“随机关节姿态对应的可达位置分布”，不代表每个位置能以任意姿态到达，也不等同于均匀笛卡尔体积采样。
+
 发送一条五秒轨迹进行测试：
 
 ```bash
@@ -504,7 +567,8 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 6. **MoveIt 2（已完成基础配置）**：配置 SRDF、KDL、OMPL、关节运行限制及控制器映射。
 7. **程序化规划（已完成基础框架）**：提供 Action、Service、状态查询、轨迹缓存和键盘笛卡尔微动。
 8. **统一启动（仿真已完成）**：由 `cyx_robot_bringup` 组合 Gazebo、模型、控制器、MoveIt、规划服务器和 RViz。
-9. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
+9. **碰撞与工作空间分析（已完成基础框架）**：简化碰撞体、采样验证 ACM，并提供碰撞统计和可达空间可视化。
+10. **真实硬件**：实现 `DamiaoSystemHardware` 和 CAN 通信，使其可替换 Gazebo hardware 而不改变上层接口。
 
 ## 目标接口
 
@@ -518,6 +582,7 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 - 缓存轨迹执行：`/cyx_arm/execute`
 - 状态与控制服务：`/cyx_arm/plan`、`/cyx_arm/stop`、`/cyx_arm/get_state`
 - 笛卡尔微动输入：`/cyx_arm/cartesian_jog`
+- 可达空间 Marker：`/cyx_arm/reachable_workspace`
 
 当前可用的启动命令：
 
@@ -525,7 +590,12 @@ ros2 topic pub --once /joint_trajectory_controller/joint_trajectory \
 ros2 launch cyx_robot_description display.launch.py
 ros2 launch cyx_robot_simulation gazebo.launch.py
 ros2 launch cyx_robot_bringup bringup.launch.py
+ros2 launch cyx_robot_bringup simulation.launch.py
+ros2 launch cyx_robot_bringup moveit_sim.launch.py
+ros2 launch cyx_robot_bringup keyboard_control.launch.py
+ros2 launch cyx_robot_bringup workspace_analysis.launch.py
 ros2 launch cyx_robot_moveit demo.launch.py
+ros2 launch cyx_robot_moveit collision_analysis.launch.py
 ```
 
 ## 后续达妙硬件规划（本阶段未实现）

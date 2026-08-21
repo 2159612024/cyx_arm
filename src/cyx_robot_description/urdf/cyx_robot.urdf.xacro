@@ -4,6 +4,7 @@
   <xacro:arg name="controllers_file" default=""/>
 
   <xacro:include filename="$(find cyx_robot_description)/urdf/materials.xacro"/>
+  <xacro:include filename="$(find cyx_robot_description)/urdf/collision_geometry.xacro"/>
   <xacro:include filename="$(find cyx_robot_description)/urdf/joint_limits.xacro"/>
   <xacro:include filename="$(find cyx_robot_description)/urdf/gazebo_control.xacro"/>
   <xacro:include filename="$(find cyx_robot_description)/urdf/tool0.xacro"/>
@@ -22,11 +23,7 @@
         </geometry>
         <material name="cyx_grey"/>
       </visual>
-      <collision>
-        <geometry>
-          <mesh filename="package://cyx_robot_description/meshes/${name}.STL"/>
-        </geometry>
-      </collision>
+      <xacro:cyx_collision_geometry name="${name}"/>
     </link>
   </xacro:macro>
 

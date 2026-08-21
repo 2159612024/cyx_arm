@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Low-complexity collision envelopes derived from the SolidWorks STL bounds.
+    Dimensions are in metres. Visual meshes remain unchanged.
+  -->
+  <xacro:macro name="cyx_collision_geometry" params="name">
+    <xacro:if value="${name == 'base_link'}">
+      <collision name="base_body">
+        <origin xyz="0 0 0.03675" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.075" length="0.0735"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link1'}">
+      <collision name="joint1_body">
+        <origin xyz="0 0 0.03725" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.050" length="0.0795"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link2'}">
+      <collision name="upper_arm">
+        <origin xyz="0.04355 0 0.075" rpy="0 0 0"/>
+        <geometry><box size="0.032 0.055 0.205"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link3'}">
+      <collision name="elbow_lower">
+        <origin xyz="0.007 0 -0.0035" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.045" length="0.067"/></geometry>
+      </collision>
+      <collision name="elbow_neck">
+        <origin xyz="0 0 0.055" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.030" length="0.050"/></geometry>
+      </collision>
+      <collision name="elbow_upper">
+        <origin xyz="0 0 0.0885" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.043" length="0.017"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link4'}">
+      <collision name="forearm">
+        <origin xyz="-0.014 0 0.048" rpy="0 0 0"/>
+        <geometry><box size="0.083 0.055 0.099"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link5'}">
+      <collision name="wrist_lower">
+        <origin xyz="-0.011 0 -0.0035" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.045" length="0.067"/></geometry>
+      </collision>
+      <collision name="wrist_neck">
+        <origin xyz="0 0 0.055" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.030" length="0.050"/></geometry>
+      </collision>
+      <collision name="wrist_upper">
+        <origin xyz="0 0 0.0885" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.043" length="0.017"/></geometry>
+      </collision>
+    </xacro:if>
+
+    <xacro:if value="${name == 'arm_link6'}">
+      <collision name="flange">
+        <origin xyz="0 0 0.00725" rpy="0 0 0"/>
+        <geometry><cylinder radius="0.0275" length="0.0175"/></geometry>
+      </collision>
+    </xacro:if>
+  </xacro:macro>
+</robot>
